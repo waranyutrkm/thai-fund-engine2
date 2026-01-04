@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Fund Engine v8.2 (Batch Grid Search)</title>
+    <title>Thai Fund Engine v8.6 (Strategy Deep Dive)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,6 +14,10 @@
     <!-- Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
     
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -54,10 +58,16 @@
         .info-btn { 
             cursor: pointer; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;
             display: inline-flex; align-items: center; justify-content: center;
-            width: 16px; height: 16px; border-radius: 50%; border: 1px solid #cbd5e1;
-            transition: all 0.2s;
+            width: 18px; height: 18px; border-radius: 50%; border: 1px solid #cbd5e1;
+            transition: all 0.2s; background-color: #fff; font-weight: bold;
         }
-        .info-btn:hover { color: #3b82f6; border-color: #3b82f6; background-color: #eff6ff; }
+        .info-btn:hover { color: #3b82f6; border-color: #3b82f6; background-color: #eff6ff; transform: scale(1.1); }
+
+        .step-circle {
+            width: 24px; height: 24px; border-radius: 50%; background-color: #eff6ff; color: #3b82f6;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem;
+            flex-shrink: 0;
+        }
 
         .loader {
             border: 3px solid #f3f3f3; 
@@ -83,7 +93,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight text-slate-800">Thai Fund Engine <span class="text-blue-600">v8.2</span></h1>
+                    <h1 class="font-bold text-lg leading-tight text-slate-800">Thai Fund Engine <span class="text-blue-600">v8.6</span></h1>
                     <p class="text-xs text-slate-500">Batch Quant Analytics & Grid Search</p>
                 </div>
             </div>
@@ -110,8 +120,10 @@
                     <!-- 1. Strategy Config -->
                     <div class="modern-card p-6 border-t-4 border-t-blue-500">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">1. Strategy Logic</h3>
-                            <span class="info-btn" onclick="showInfo('strategy')">?</span>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">1. Strategy Logic</h3>
+                                <span class="info-btn" onclick="showInfo('strategy_logic')">?</span>
+                            </div>
                         </div>
                         
                         <div class="mb-4">
@@ -149,14 +161,58 @@
                             </div>
                             <button onclick="resetDefaultAssets()" class="text-[10px] text-blue-500 hover:underline">Reset Default</button>
                         </div>
+                        
+                        <!-- Quick Add Dropdown -->
+                        <div class="relative mb-2">
+                            <select id="quick-add-asset" onchange="quickAddAsset(this.value)" class="w-full bg-white border border-dashed border-slate-300 rounded-lg text-xs py-2 px-3 text-slate-500 focus:border-blue-500 outline-none cursor-pointer hover:bg-slate-50">
+                                <option value="">+ Add Recommended Asset...</option>
+                                <optgroup label="🇺🇸 US Equities">
+                                    <option value="QQQ">Nasdaq 100 (QQQ)</option>
+                                    <option value="SPY">S&P 500 (SPY)</option>
+                                    <option value="VTI">Total US Stock (VTI)</option>
+                                    <option value="SMH">Semiconductors (SMH)</option>
+                                    <option value="NVDA">NVIDIA (NVDA)</option>
+                                    <option value="AAPL">Apple (AAPL)</option>
+                                    <option value="MSFT">Microsoft (MSFT)</option>
+                                </optgroup>
+                                <optgroup label="🌍 Global & Emerging">
+                                    <option value="ACWI">All Country World (ACWI)</option>
+                                    <option value="VT">Total World (VT)</option>
+                                    <option value="EEM">Emerging Markets (EEM)</option>
+                                    <option value="INDA">India (INDA)</option>
+                                    <option value="CNYA">China A-Shares (CNYA)</option>
+                                </optgroup>
+                                <optgroup label="🛡️ Bonds & Safe Haven">
+                                    <option value="TLT">20+ Yr Treasury (TLT)</option>
+                                    <option value="AGG">US Agg Bond (AGG)</option>
+                                    <option value="GLD">Gold (GLD)</option>
+                                    <option value="SLV">Silver (SLV)</option>
+                                </optgroup>
+                                <optgroup label="🚀 Alternative">
+                                    <option value="BTC-USD">Bitcoin (BTC)</option>
+                                    <option value="ETH-USD">Ethereum (ETH)</option>
+                                    <option value="DBC">Commodities (DBC)</option>
+                                    <option value="UUP">US Dollar (UUP)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
                         <div id="asset-list" class="space-y-2 mb-4 max-h-[150px] overflow-y-auto pr-1"></div>
-                        <button onclick="addAsset()" class="w-full py-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 hover:border-blue-500 hover:text-blue-600 text-xs font-bold transition-all">+ Add Asset</button>
+                        
+                        <!-- Manual Add Input (Fixed) -->
+                        <div class="flex gap-2 mt-2">
+                            <input type="text" id="manual-ticker-input" placeholder="Type Symbol (e.g. TSLA)" class="flex-1 bg-white border border-slate-200 rounded-lg text-xs py-2 px-3 focus:border-blue-500 outline-none uppercase text-slate-700 font-bold" onkeypress="if(event.key==='Enter') addAssetManual()">
+                            <button onclick="addAssetManual()" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-all shadow-sm">Add</button>
+                        </div>
                     </div>
 
                     <!-- 2. Parameters -->
                     <div class="modern-card p-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">2. Execution Parameters</h3>
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                2. Execution Parameters
+                                <span class="info-btn" onclick="showInfo('exec_params')">?</span>
+                            </h3>
                             <span class="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-full font-bold">Supports Multiple Values</span>
                         </div>
                         
@@ -186,18 +242,21 @@
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="text-[10px] text-slate-400 mb-1 block">T-Cost (Turnover)</label>
+                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">T-Cost <span class="info-btn" onclick="showInfo('t_cost')">?</span></label>
                                     <input type="number" id="cost-tcost" value="0.10" step="0.01" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-right text-rose-600 font-medium font-mono">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] text-slate-400 mb-1 block">Annual Expense</label>
+                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">Ann. Expense <span class="info-btn" onclick="showInfo('expense')">?</span></label>
                                     <input type="number" id="cost-er" value="0.50" step="0.01" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-right text-rose-600 font-medium font-mono">
                                 </div>
                             </div>
                         </div>
                         
                         <div class="mb-4">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block">Backtest Range</label>
+                            <div class="flex items-center mb-1.5">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase block">Backtest Range</label>
+                                <span class="info-btn" onclick="showInfo('range')">?</span>
+                            </div>
                             <div class="flex gap-2">
                                 <input type="date" id="date-start" class="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs py-2 px-2">
                                 <input type="date" id="date-end" class="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs py-2 px-2">
@@ -219,7 +278,10 @@
                         <div class="modern-card p-6 border-l-4 border-blue-500">
                             <div class="flex justify-between items-center mb-4">
                                 <div>
-                                    <h2 class="text-lg font-bold text-slate-800">Batch Comparison</h2>
+                                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                        Batch Comparison
+                                        <span class="info-btn" onclick="showInfo('batch_comparison')">?</span>
+                                    </h2>
                                     <p class="text-xs text-slate-500">Showing all combinations. Click row to view details.</p>
                                 </div>
                                 <div class="text-right">
@@ -250,19 +312,19 @@
                             <!-- Key Stats -->
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div class="modern-card p-4 border-l-4 border-emerald-500">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">CAGR (After Cost)</div>
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">CAGR (After Cost) <span class="info-btn" onclick="showInfo('cagr')">?</span></div>
                                     <div id="res-cagr" class="text-2xl font-bold text-emerald-600">-</div>
                                 </div>
                                 <div class="modern-card p-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Sharpe Ratio</div>
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Sharpe Ratio <span class="info-btn" onclick="showInfo('sharpe')">?</span></div>
                                     <div id="res-sharpe" class="text-2xl font-bold text-blue-600">-</div>
                                 </div>
                                 <div class="modern-card p-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Max Drawdown</div>
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Max Drawdown <span class="info-btn" onclick="showInfo('mdd')">?</span></div>
                                     <div id="res-mdd" class="text-2xl font-bold text-rose-600">-</div>
                                 </div>
                                 <div class="modern-card p-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Turnover / Year</div>
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Turnover / Year <span class="info-btn" onclick="showInfo('turnover')">?</span></div>
                                     <div id="res-turnover" class="text-2xl font-bold text-slate-600">-</div>
                                 </div>
                             </div>
@@ -270,7 +332,10 @@
                             <!-- Main Equity Curve -->
                             <div class="modern-card p-6">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h2 class="text-lg font-bold text-slate-800">Growth Analysis</h2>
+                                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                        Growth Analysis
+                                        <span class="info-btn" onclick="showInfo('growth_chart')">?</span>
+                                    </h2>
                                     <div class="flex gap-4 text-xs">
                                         <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> Before Cost</span>
                                         <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-600 rounded-full"></span> After Cost</span>
@@ -284,25 +349,37 @@
                             <!-- INVESTOR ANALYSIS -->
                             <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
                                 <div class="text-center mb-6">
-                                    <h2 class="text-xl font-bold text-slate-800">Rolling Horizon Analysis</h2>
+                                    <h2 class="text-xl font-bold text-slate-800 flex items-center justify-center gap-2">
+                                        Rolling Horizon Analysis
+                                        <span class="info-btn" onclick="showInfo('rolling_chart')">?</span>
+                                    </h2>
                                     <p class="text-sm text-slate-500">ถ้าเริ่มลงทุน "วันไหนก็ได้" ในอดีต ผลลัพธ์จะเป็นอย่างไร?</p>
                                 </div>
                                 
                                 <div class="modern-card p-6 mb-6">
-                                    <h3 class="text-sm font-bold text-slate-700 mb-2">1. Return Range (LUMP SUM vs DCA)</h3>
+                                    <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                        1. Return Range (LUMP SUM vs DCA)
+                                        <span class="info-btn" onclick="showInfo('return_range')">?</span>
+                                    </h3>
                                     <div class="h-[300px]">
                                         <canvas id="chart-range"></canvas>
                                     </div>
                                 </div>
                                 <div class="grid md:grid-cols-2 gap-6">
                                     <div class="modern-card p-6">
-                                        <h3 class="text-sm font-bold text-slate-700 mb-2">2. Loss Probability</h3>
+                                        <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                            2. Loss Probability
+                                            <span class="info-btn" onclick="showInfo('loss_prob')">?</span>
+                                        </h3>
                                         <div class="h-[200px]">
                                             <canvas id="chart-loss"></canvas>
                                         </div>
                                     </div>
                                     <div class="modern-card p-6">
-                                        <h3 class="text-sm font-bold text-slate-700 mb-2">3. Expected Return</h3>
+                                        <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                            3. Expected Return
+                                            <span class="info-btn" onclick="showInfo('expected_ret')">?</span>
+                                        </h3>
                                         <div class="h-[200px]">
                                             <canvas id="chart-expected"></canvas>
                                         </div>
@@ -347,14 +424,182 @@
 
         <!-- VIEW 3: METHODOLOGY (Docs) -->
         <div id="view-docs" class="hidden max-w-4xl mx-auto my-8 space-y-8 animate-fade-in">
-             <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                <h3 class="text-xl font-bold text-slate-800 mb-4">Parameter Guide</h3>
-                <div class="space-y-4 text-sm text-slate-600">
-                    <p><strong>Lookback:</strong> จำนวนวันที่ใช้มองย้อนหลังเพื่อคำนวณผลตอบแทนหรือความผันผวน (เช่น 60 วัน, 120 วัน)</p>
-                    <p><strong>Rebalance:</strong> ความถี่ในการปรับพอร์ต (เช่น ทุก 20 วันทำการ = 1 เดือน)</p>
-                    <p><strong>T-Cost:</strong> ต้นทุนการซื้อขายจริง (Slippage + Commission) คิดเป็น % จากมูลค่าที่หมุนเวียน</p>
-                    <p><strong>Expense Ratio:</strong> ค่าธรรมเนียมการจัดการกองทุน (Management Fee) รายปี</p>
+             <div class="space-y-6">
+                
+                <!-- Section 1: Workflow -->
+                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
+                    <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                        หลักการทำงานของระบบ (System Workflow)
+                    </h3>
+                    <div class="grid gap-4">
+                        <div class="flex gap-4">
+                            <div class="step-circle">1</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">ดึงข้อมูล (Fetch Data)</h4>
+                                <p class="text-sm text-slate-500">ระบบดึงราคาปิดที่ปรับปรุงแล้ว (Adjusted Close) จาก Yahoo Finance โดยอัตโนมัติ เพื่อให้รวมผลของปันผลและการแตกพาร์</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="step-circle">2</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">คำนวณสัญญาณ (Signal Calculation)</h4>
+                                <p class="text-sm text-slate-500">คำนวณผลตอบแทนย้อนหลัง (Momentum) หรือความผันผวน (Volatility) ตามค่า Lookback ที่กำหนด (เช่น 60 วัน)</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="step-circle">3</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">จัดสรรน้ำหนัก (Allocation)</h4>
+                                <p class="text-sm text-slate-500">เลือกสินทรัพย์และกำหนดน้ำหนักตามกลยุทธ์ที่เลือก (เช่น Top 3, Rank All)</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="step-circle">4</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">จำลองการลงทุน (Backtest Simulation)</h4>
+                                <p class="text-sm text-slate-500">เดินหน้าวันละ 1 วัน (Walk-forward) ทำการซื้อขายจริงเมื่อถึงรอบ Rebalance และหักค่าธรรมเนียม (Cost) ทุกขั้นตอน</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="step-circle">5</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">วิเคราะห์ผลลัพธ์ (Analysis)</h4>
+                                <p class="text-sm text-slate-500">คำนวณสถิติแบบ Rolling Window เพื่อดูความน่าจะเป็นของกำไร/ขาดทุนในระยะยาว</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Section 2: Strategy Deep Dive -->
+                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
+                    <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                        เจาะลึกกลยุทธ์พร้อมตัวอย่าง (Strategy Deep Dive)
+                    </h3>
+                    
+                    <div class="space-y-8">
+                        <!-- Group 1: Simple -->
+                        <div>
+                            <h4 class="text-lg font-bold text-blue-700 mb-2 border-b border-blue-100 pb-1">1. กลุ่มพื้นฐาน (Simple Weighting)</h4>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="bg-slate-50 p-4 rounded-lg">
+                                    <div class="font-bold text-slate-700 mb-1">Equal Weight</div>
+                                    <p class="text-sm text-slate-600 mb-2">กระจายเงินลงทุนเท่ากันทุกตัว ไม่ว่าผลงานในอดีตจะเป็นอย่างไร</p>
+                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                        <strong>ตัวอย่าง:</strong> มีสินทรัพย์ 4 ตัว (A, B, C, D)<br>
+                                        👉 ลงทุนตัวละ 25% เท่ากันหมด
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-lg">
+                                    <div class="font-bold text-slate-700 mb-1">Rank All</div>
+                                    <p class="text-sm text-slate-600 mb-2">เรียงลำดับจากเก่งสุดไปแย่สุด ตัวเก่งได้เงินเยอะ ตัวแย่ได้เงินน้อย (แต่ยังได้อยู่)</p>
+                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                        <strong>ตัวอย่าง:</strong> มี 3 ตัว เรียงตามกำไร: A > B > C<br>
+                                        👉 A (ที่ 1): ได้ 3 ส่วน (50%)<br>
+                                        👉 B (ที่ 2): ได้ 2 ส่วน (33%)<br>
+                                        👉 C (ที่ 3): ได้ 1 ส่วน (17%)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Group 2: Momentum -->
+                        <div>
+                            <h4 class="text-lg font-bold text-emerald-700 mb-2 border-b border-emerald-100 pb-1">2. กลุ่มโมเมนตัม (Momentum / Top-K)</h4>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="bg-slate-50 p-4 rounded-lg">
+                                    <div class="font-bold text-slate-700 mb-1">Top-K Equal (ยอดนิยม)</div>
+                                    <p class="text-sm text-slate-600 mb-2">คัดเฉพาะ "ตัวท็อป" (เช่น 3 อันดับแรก) มาลงทุนเท่าๆ กัน ตัวที่ไม่ติดอันดับตัดทิ้งเลย</p>
+                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                        <strong>ตัวอย่าง:</strong> A(+10%), B(+8%), C(+5%), D(-2%)<br>
+                                        👉 เลือก Top 3: A, B, C<br>
+                                        👉 ลงทุนตัวละ 33.3% (D ไม่ได้ลง)
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-lg">
+                                    <div class="font-bold text-slate-700 mb-1">Absolute Momentum</div>
+                                    <p class="text-sm text-slate-600 mb-2">ถือเฉพาะตัวที่เป็น "ขาขึ้น" (กำไร > 0) เท่านั้น ตัวไหนขาดทุนขายทิ้งถือเงินสด</p>
+                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                        <strong>ตัวอย่าง:</strong> A(+5%), B(-10%)<br>
+                                        👉 ซื้อ A ตัวเดียว 100%<br>
+                                        👉 B ไม่ซื้อเพราะติดลบ
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-lg">
+                                    <div class="font-bold text-slate-700 mb-1">Dual Momentum</div>
+                                    <p class="text-sm text-slate-600 mb-2">ลูกผสม: ต้องเก่งกว่าเพื่อน (Relative) และต้องเป็นขาขึ้น (Absolute) ด้วย</p>
+                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                        <strong>ตัวอย่าง:</strong> เลือก Top 2 แต่ต้องบวก<br>
+                                        A(+10%), B(-2%), C(-5%)<br>
+                                        👉 แม้ B จะเป็นที่ 2 แต่ติดลบ<br>
+                                        👉 พอร์ตจะถือแค่ A ตัวเดียว 100% (หรือ 50% แล้วถือสด)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Group 3: Risk -->
+                        <div>
+                            <h4 class="text-lg font-bold text-amber-700 mb-2 border-b border-amber-100 pb-1">3. กลุ่มความเสี่ยง (Risk Based)</h4>
+                            <div class="bg-slate-50 p-4 rounded-lg">
+                                <div class="font-bold text-slate-700 mb-1">Inverse Volatility</div>
+                                <p class="text-sm text-slate-600 mb-2">ให้ความสำคัญกับความปลอดภัย ตัวไหนราคานิ่ง (ผันผวนต่ำ) จะได้เงินลงทุนเยอะ ตัวไหนเหวี่ยงแรง ได้น้อย</p>
+                                <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
+                                    <strong>ตัวอย่าง:</strong><br>
+                                    A (เหวี่ยง 10%) vs B (เหวี่ยง 20%)<br>
+                                    👉 A นิ่งกว่า B 2 เท่า<br>
+                                    👉 ลงทุน A = 66%, B = 33%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Asset Guide -->
+                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm bg-blue-50/50">
+                    <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        คำแนะนำการเพิ่มสินทรัพย์ (Asset Symbol Guide)
+                    </h3>
+                    <p class="text-sm text-slate-600 mb-4">
+                        ระบบใช้ข้อมูลจาก <strong>Yahoo Finance</strong> ดังนั้นชื่อย่อ (Ticker Symbol) ที่กรอกในช่อง "Type Symbol" ต้องตรงกับฐานข้อมูลของ Yahoo Finance เท่านั้น
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-4 text-sm">
+                        <div class="bg-white p-4 rounded-lg border border-slate-200">
+                            <h4 class="font-bold text-slate-700 mb-2">🌍 ตลาดต่างประเทศ (US/Global)</h4>
+                            <ul class="list-disc list-inside text-slate-500 space-y-1">
+                                <li><strong>หุ้นรายตัว:</strong> AAPL, TSLA, MSFT, NVDA</li>
+                                <li><strong>ETF:</strong> SPY, QQQ, GLD, TLT</li>
+                                <li><strong>คริปโต:</strong> BTC-USD, ETH-USD</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg border border-slate-200">
+                            <h4 class="font-bold text-slate-700 mb-2">🇹🇭 ตลาดหุ้นไทย (SET)</h4>
+                            <p class="text-slate-500 mb-2">ต้องเติม <code>.BK</code> ต่อท้ายชื่อหุ้นเสมอ</p>
+                            <ul class="list-disc list-inside text-slate-500 space-y-1">
+                                <li><strong>PTT:</strong> PTT.BK</li>
+                                <li><strong>CPALL:</strong> CPALL.BK</li>
+                                <li><strong>AOT:</strong> AOT.BK</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-500">
+                        * แนะนำให้ไปค้นหาชื่อย่อที่ถูกต้องจากเว็บ <a href="https://finance.yahoo.com/" target="_blank" class="text-blue-600 hover:underline">finance.yahoo.com</a> ก่อนนำมากรอก เพื่อความถูกต้องของข้อมูล
+                    </div>
+                </div>
+
+                <!-- Section 4: Parameters -->
+                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
+                    <h3 class="text-xl font-bold text-slate-800 mb-4">Parameter Guide</h3>
+                    <div class="space-y-4 text-sm text-slate-600">
+                        <p><strong>Lookback:</strong> จำนวนวันที่ใช้มองย้อนหลังเพื่อคำนวณผลตอบแทนหรือความผันผวน (เช่น 60 วัน, 120 วัน)</p>
+                        <p><strong>Rebalance:</strong> ความถี่ในการปรับพอร์ต (เช่น ทุก 20 วันทำการ = 1 เดือน)</p>
+                        <p><strong>T-Cost:</strong> ต้นทุนการซื้อขายจริง (Slippage + Commission) คิดเป็น % จากมูลค่าที่หมุนเวียน</p>
+                        <p><strong>Expense Ratio:</strong> ค่าธรรมเนียมการจัดการกองทุน (Management Fee) รายปี</p>
+                    </div>
+                </div>
+
              </div>
         </div>
 
@@ -362,9 +607,9 @@
 
     <!-- Info Modal -->
     <div id="info-modal" class="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4" onclick="if(event.target===this) closeInfo()">
-        <div class="bg-white p-6 max-w-sm w-full rounded-2xl shadow-xl transform transition-all">
-            <h3 id="info-title" class="text-lg font-bold text-slate-800 mb-2">Title</h3>
-            <p id="info-desc" class="text-sm text-slate-600 leading-relaxed mb-6">Description</p>
+        <div class="bg-white p-6 max-w-md w-full rounded-2xl shadow-xl transform transition-all scale-100">
+            <h3 id="info-title" class="text-lg font-bold text-blue-700 mb-3 border-b pb-2">Title</h3>
+            <div id="info-desc" class="text-sm text-slate-600 leading-relaxed mb-6 font-light">Description</div>
             <button onclick="closeInfo()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors">Close</button>
         </div>
     </div>
@@ -398,11 +643,43 @@
     };
 
     const INFO_TEXTS = {
-        "strategy": "กฎการลงทุนที่ใช้ตัดสินใจเลือกสินทรัพย์และกำหนดน้ำหนักการลงทุนในแต่ละรอบ",
-        "universe": "กลุ่มของสินทรัพย์ที่เราสนใจจะลงทุน (เช่น หุ้นสหรัฐ, ทองคำ, พันธบัตร) ระบบจะเลือกเฉพาะตัวที่ดีที่สุดจากกลุ่มนี้",
-        "lookback": "ช่วงเวลาที่ใช้มองย้อนหลัง (วัน) เพื่อวัดความแรง (Momentum) หรือความผันผวน ใส่หลายค่าได้โดยใช้เครื่องหมายจุลภาคคั่น เช่น '60, 120'",
-        "rebalance": "ความถี่ในการปรับพอร์ต (วัน) เช่น 20 วัน (ประมาณ 1 เดือน) ใส่หลายค่าได้ เช่น '20, 60'",
-        "costs": "ต้นทุนเสมือนจริงเพื่อให้ผลลัพธ์ไม่สวยหรูเกินจริง (T-Cost = ค่าคอมฯ+Slippage, Expense = ค่าธรรมเนียมกองทุน)"
+        "strategy_logic": "<b>Strategy Logic</b> คือกฎการลงทุนที่เราใช้ตัดสินใจว่าในแต่ละรอบ (Rebalance) จะซื้อตัวไหน ขายตัวไหน<br><br>- <b>Momentum:</b> เชื่อว่า 'ของที่ขึ้นแล้วจะขึ้นต่อ' (ตามเทรนด์)<br>- <b>Mean Reversion:</b> เชื่อว่า 'ของที่ขึ้นเยอะเดี๋ยวก็ลง'<br>- <b>Low Vol:</b> เน้นตัวที่ราคานิ่งๆ ปลอดภัยไว้ก่อน",
+        
+        "universe": "<b>Asset Universe</b> คือ 'ตระกร้าของสินทรัพย์' ที่เราเลือกมาให้ระบบพิจารณาลงทุน<br><br>เช่น ถ้าเราเลือก [หุ้นเทค, ทองคำ, พันธบัตร] ระบบก็จะเลือกซื้อขายวนเวียนอยู่แค่ใน 3 ตัวนี้เท่านั้น ไม่ไปซื้อตัวอื่น",
+        
+        "exec_params": "<b>Execution Parameters</b> คือตัวแปรที่ใช้ควบคุมการทดสอบ:<br><br>คุณสามารถใส่ค่าหลายตัวคั่นด้วยจุลภาค (เช่น 60, 120) เพื่อให้ระบบทดสอบทุกค่าพร้อมกัน (Grid Search) แล้วดูว่าค่าไหนให้ผลลัพธ์ดีที่สุด",
+        
+        "lookback": "<b>Lookback (ระยะมองย้อนหลัง)</b><br>คือจำนวนวันที่เรามองย้อนกลับไปเพื่อตัดสินใจ<br><br>- <b>สั้น (เช่น 20 วัน):</b> ไวต่อตลาด แต่สัญญาณหลอกเยอะ (Noise)<br>- <b>ยาว (เช่น 252 วัน):</b> ชัวร์กว่า แต่มักจะเข้า-ออกช้า (Lag)",
+        
+        "rebalance": "<b>Rebalance (รอบการปรับพอร์ต)</b><br>คือความถี่ที่เราจะเข้ามาดูพอร์ตเพื่อซื้อขายปรับสัดส่วน<br><br>- <b>20 วัน:</b> ปรับทุกเดือน<br>- <b>60 วัน:</b> ปรับทุกไตรมาส<br>ยิ่งปรับบ่อย ยิ่งเปลืองค่าคอมฯ",
+        
+        "costs": "<b>Costs (ต้นทุนแฝง)</b><br>ในการ Backtest ทั่วไปมักละเลยจุดนี้ ทำให้ผลลัพธ์ดูดีเกินจริง (Over-optimistic) แต่ระบบนี้เราหักต้นทุนจริงเพื่อให้ได้ผลลัพธ์ที่เชื่อถือได้",
+        
+        "t_cost": "<b>T-Cost (Transaction Cost)</b><br>ต้นทุนในการเทรดแต่ละครั้ง ประกอบด้วย:<br>1. ค่าคอมมิชชันโบรกเกอร์<br>2. Slippage (ราคาที่แมทช์จริงแย่กว่าที่เห็น)<br>3. Bid-Ask Spread<br>ใส่ไว้ 0.10% คือค่ามาตรฐานที่ปลอดภัย",
+        
+        "expense": "<b>Annual Expense (ค่าธรรมเนียมรายปี)</b><br>คือค่าธรรมเนียมที่กองทุน ETF หักออกจากเงินต้นของเราปีละครั้ง (เช่น ค่าบริหารจัดการ) ยิ่งถือยาว ยิ่งกระทบผลตอบแทนทบต้น",
+        
+        "range": "<b>Backtest Range</b><br>ช่วงเวลาในอดีตที่ใช้ทดสอบ ควรครอบคลุมทั้งวิกฤต (เช่น 2008, 2020) และช่วงตลาดกระทิง เพื่อดูว่าระบบเอาตัวรอดได้ในทุกสภาวะหรือไม่",
+        
+        "batch_comparison": "<b>ตารางเปรียบเทียบ</b><br>หน้านี้จะสรุปผลการทดสอบของทุกค่าที่คุณใส่ไป (Grid Search) โดยเรียงลำดับจาก Sharpe Ratio (ความคุ้มค่า) ให้คุณเลือก Config ที่ดีที่สุด",
+        
+        "cagr": "<b>CAGR (ผลตอบแทนทบต้นต่อปี)</b><br>บอกว่าเงินเราโตเฉลี่ยปีละกี่ % (หลังหักต้นทุนแล้ว)<br>เช่น 10% แปลว่าลงทุน 100 บาท ผ่านไป 1 ปีได้ 110 บาท",
+        
+        "sharpe": "<b>Sharpe Ratio (ความคุ้มค่า)</b><br>ค่ายิ่งมากยิ่งดี เป็นการวัดว่า 'กำไรที่ได้มา คุ้มกับความเสี่ยงที่เจอไหม'<br>- <b>> 1.0:</b> ดี<br>- <b>> 2.0:</b> ดีมาก (หายาก)",
+        
+        "mdd": "<b>Max Drawdown (ความเสี่ยงสูงสุด)</b><br>คือการขาดทุนหนักที่สุดที่เคยเกิดขึ้นในอดีต (จากยอดดอยสู่หุบเหว)<br>เช่น -20% แปลว่าเคยมีช่วงที่เงินหายไป 20% คุณรับไหวไหม?",
+        
+        "turnover": "<b>Turnover (อัตราหมุนเวียน)</b><br>บอกว่าเราซื้อขายบ่อยแค่ไหน<br>- 100% ต่อปี แปลว่าเปลี่ยนหุ้นในพอร์ตใหม่หมดปีละ 1 รอบ<br>- ยิ่งสูง ยิ่งเสียค่าคอมฯ เยอะ และอาจเสียภาษีเยอะ (ถ้ามี)",
+        
+        "growth_chart": "<b>กราฟการเติบโต (Log Scale)</b><br>แสดงมูลค่าเงินลงทุนเริ่มต้น 1,000 บาท<br>- <b>เส้นเขียว:</b> ผลตอบแทนในอุดมคติ (ไม่คิดค่าคอมฯ)<br>- <b>เส้นน้ำเงิน:</b> ผลตอบแทนจริง (หักค่าคอมฯ แล้ว)",
+        
+        "rolling_chart": "<b>Rolling Horizon Analysis</b><br>เทคนิคขั้นสูงที่ช่วยตอบคำถามว่า <i>'ถ้าฉันโชคร้าย เริ่มลงทุนผิดเวลา จะเป็นยังไง?'</i><br>โดยการจำลองการลงทุนนับพันครั้งในทุกช่วงเวลาที่เป็นไปได้ในอดีต",
+        
+        "return_range": "<b>Return Range (กรอบผลตอบแทน)</b><br>แท่งกราฟนี้บอกว่า ในระยะเวลาถือครองต่างๆ (1-10 ปี) ผลตอบแทนที่ดีที่สุด (เขียว) และแย่ที่สุด (แดง) ที่เคยเกิดขึ้นคือเท่าไหร่",
+        
+        "loss_prob": "<b>Loss Probability (โอกาสขาดทุน)</b><br>กราฟนี้บอกว่า <i>'มีกี่ % ที่เราจะขาดทุน'</i> ยิ่งถือนาน เส้นกราฟควรจะยิ่งลดลงเข้าหา 0% (แปลว่าถือนานแล้วไม่ขาดทุน)",
+        
+        "expected_ret": "<b>Expected Return (ผลตอบแทนคาดหวัง)</b><br>เส้นทึบคือค่าเฉลี่ย (Mean) ส่วนเส้นปะคือค่ากลาง (Median) <br>ปกติ DCA จะได้ผลตอบแทนน้อยกว่า Lump Sum เล็กน้อย แต่แลกมาด้วยความเสี่ยงที่ต่ำกว่าและความสบายใจ"
     };
 
     function updateStrategyDesc() {
@@ -412,8 +689,8 @@
     }
 
     function showInfo(key) {
-        document.getElementById('info-title').innerText = key.toUpperCase();
-        document.getElementById('info-desc').innerText = INFO_TEXTS[key] || "No description available.";
+        document.getElementById('info-title').innerText = (key.replace('_', ' ')).toUpperCase();
+        document.getElementById('info-desc').innerHTML = INFO_TEXTS[key] || "No description available.";
         document.getElementById('info-modal').classList.remove('hidden');
         document.getElementById('info-modal').classList.add('flex');
     }
@@ -863,12 +1140,37 @@
     // UI Helpers
     function renderAssetList() {
         document.getElementById('asset-list').innerHTML = STATE.assets.map((sym, idx) => `
-            <div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-100">
+            <div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-100 animate-fade-in">
                 <span class="text-xs font-bold text-slate-700">${sym}</span>
-                <button onclick="removeAsset(${idx})" class="text-slate-400 hover:text-rose-500">✕</button>
+                <button onclick="removeAsset(${idx})" class="text-slate-400 hover:text-rose-500 w-5 h-5 flex items-center justify-center rounded-full hover:bg-rose-50 transition-colors">✕</button>
             </div>`).join('');
     }
-    function addAsset() { const sym = prompt("Ticker:"); if(sym) { STATE.assets.push(sym.toUpperCase()); renderAssetList(); } }
+    
+    // New Manual Add Function
+    function addAssetManual() {
+        const input = document.getElementById('manual-ticker-input');
+        const val = input.value.trim().toUpperCase();
+        
+        if (!val) {
+            alert("Please type a ticker symbol first.");
+            return;
+        }
+        
+        if (STATE.assets.includes(val)) {
+            alert(`Asset ${val} is already in the list.`);
+            input.value = "";
+            return;
+        }
+
+        STATE.assets.push(val);
+        renderAssetList();
+        input.value = ""; // Clear input
+    }
+
+    // Deprecated the old prompt-based function
+    function addAsset() { addAssetManual(); } 
+
+    function quickAddAsset(val) { if(val && !STATE.assets.includes(val)) { STATE.assets.push(val); renderAssetList(); document.getElementById('quick-add-asset').value = ""; } }
     function removeAsset(idx) { STATE.assets.splice(idx, 1); renderAssetList(); }
     function resetDefaultAssets() { STATE.assets = [...DEFAULT_ASSETS]; renderAssetList(); }
     
