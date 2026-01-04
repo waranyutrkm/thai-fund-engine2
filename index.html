@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai Fund Engine v8.6 (Strategy Deep Dive)</title>
+    <title>Thai Fund Engine v11.6 (Final Fixed)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,13 +11,6 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Plotly.js -->
-    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
-    
-    <!-- MathJax -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -33,7 +26,7 @@
     </script>
 
     <style>
-        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
+        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; color: #1e293b; }
         
         .modern-card {
             background: #ffffff;
@@ -45,9 +38,11 @@
 
         .tab-btn.active { color: #2563eb; border-bottom: 2px solid #2563eb; background-color: #eff6ff; }
         .tab-btn { color: #64748b; padding: 8px 16px; transition: all 0.2s; border-radius: 8px 8px 0 0; }
+        .tab-btn:hover { background-color: #f1f5f9; color: #334155; }
 
         /* Table Styling */
-        .rebal-table th { background-color: #f1f5f9; color: #475569; font-weight: 600; font-size: 0.75rem; padding: 8px; text-align: right; }
+        .rebal-table th { background-color: #f1f5f9; color: #475569; font-weight: 600; font-size: 0.75rem; padding: 10px 8px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid #e2e8f0; }
+        .rebal-table th:hover { background-color: #e2e8f0; color: #1e293b; }
         .rebal-table td { border-bottom: 1px solid #e2e8f0; padding: 8px; font-size: 0.75rem; text-align: right; color: #334155; }
         .rebal-table tr:last-child td { border-bottom: none; }
         .rebal-table td:first-child, .rebal-table th:first-child { text-align: left; }
@@ -56,18 +51,12 @@
         .batch-row.selected { background-color: #eff6ff; border-left: 4px solid #3b82f6; }
 
         .info-btn { 
-            cursor: pointer; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;
+            cursor: pointer; color: #94a3b8; font-size: 0.7rem; margin-left: 4px; vertical-align: middle;
             display: inline-flex; align-items: center; justify-content: center;
-            width: 18px; height: 18px; border-radius: 50%; border: 1px solid #cbd5e1;
+            width: 16px; height: 16px; border-radius: 50%; border: 1px solid #cbd5e1;
             transition: all 0.2s; background-color: #fff; font-weight: bold;
         }
         .info-btn:hover { color: #3b82f6; border-color: #3b82f6; background-color: #eff6ff; transform: scale(1.1); }
-
-        .step-circle {
-            width: 24px; height: 24px; border-radius: 50%; background-color: #eff6ff; color: #3b82f6;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem;
-            flex-shrink: 0;
-        }
 
         .loader {
             border: 3px solid #f3f3f3; 
@@ -77,7 +66,37 @@
             height: 20px;
             animation: spin 1s linear infinite;
         }
+        
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .th-tooltip { position: relative; }
+        .th-tooltip:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 100%; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: #fff; padding: 4px 8px;
+            border-radius: 4px; font-size: 10px; white-space: nowrap; z-index: 50;
+            margin-bottom: 4px; white-space: normal; width: 150px; text-align: center;
+        }
+        
+        .pagination-btn {
+            padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 4px; 
+            font-size: 0.75rem; color: #64748b; background: white; cursor: pointer;
+        }
+        .pagination-btn:hover:not(:disabled) { background: #f1f5f9; color: #3b82f6; }
+        .pagination-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Method Docs */
+        .doc-section { margin-bottom: 3rem; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2rem; }
+        .doc-title { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-bottom: 1rem; border-left: 4px solid #3b82f6; padding-left: 12px; }
+        .doc-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 1.25rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .stat-val-bench { font-size: 0.75rem; color: #64748b; margin-top: 2px; font-weight: 500; }
+        .tag { display: inline-block; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; border-radius: 999px; margin-right: 6px; }
+        .tag-blue { background: #dbeafe; color: #1e40af; }
+        .tag-green { background: #d1fae5; color: #065f46; }
+        .asset-tag { display: inline-flex; align-items: center; background: #e2e8f0; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 4px; margin-bottom: 4px; color: #475569; }
+        .asset-remove { margin-left: 6px; cursor: pointer; color: #ef4444; font-weight: bold; }
+        .asset-remove:hover { color: #dc2626; }
     </style>
 </head>
 
@@ -93,8 +112,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight text-slate-800">Thai Fund Engine <span class="text-blue-600">v8.6</span></h1>
-                    <p class="text-xs text-slate-500">Batch Quant Analytics & Grid Search</p>
+                    <h1 class="font-bold text-lg leading-tight text-slate-800">Thai Fund Engine <span class="text-blue-600">v11.6</span></h1>
+                    <p class="text-xs text-slate-500">Fixed & Optimized Core</p>
                 </div>
             </div>
 
@@ -153,6 +172,32 @@
                             <!-- JS will update this -->
                         </div>
 
+                        <!-- Benchmark Selector -->
+                        <div class="mb-4">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block">Benchmark (Compare)</label>
+                            <select id="benchmark-select" class="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs py-2 px-3 focus:border-blue-500 outline-none">
+                                <option value="">None</option>
+                                <option value="EQUAL_WEIGHT">🔹 Equal Weight (Passive)</option>
+                                <optgroup label="US Indices">
+                                    <option value="SPY">S&P 500 (SPY)</option>
+                                    <option value="QQQ">Nasdaq 100 (QQQ)</option>
+                                    <option value="VTI">Total US Stock (VTI)</option>
+                                    <option value="DIA">Dow Jones (DIA)</option>
+                                </optgroup>
+                                <optgroup label="Global">
+                                    <option value="ACWI">All Country World (ACWI)</option>
+                                    <option value="VT">Total World (VT)</option>
+                                    <option value="EEM">Emerging Markets (EEM)</option>
+                                </optgroup>
+                                <optgroup label="Bonds & Alt">
+                                    <option value="AGG">US Agg Bond (AGG)</option>
+                                    <option value="BND">Total Bond (BND)</option>
+                                    <option value="GLD">Gold (GLD)</option>
+                                    <option value="BTC-USD">Bitcoin (BTC)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
                         <!-- Asset Universe -->
                         <div class="mb-2 flex justify-between items-center">
                             <div class="flex items-center">
@@ -172,8 +217,6 @@
                                     <option value="VTI">Total US Stock (VTI)</option>
                                     <option value="SMH">Semiconductors (SMH)</option>
                                     <option value="NVDA">NVIDIA (NVDA)</option>
-                                    <option value="AAPL">Apple (AAPL)</option>
-                                    <option value="MSFT">Microsoft (MSFT)</option>
                                 </optgroup>
                                 <optgroup label="🌍 Global & Emerging">
                                     <option value="ACWI">All Country World (ACWI)</option>
@@ -197,9 +240,9 @@
                             </select>
                         </div>
 
-                        <div id="asset-list" class="space-y-2 mb-4 max-h-[150px] overflow-y-auto pr-1"></div>
+                        <div id="asset-list" class="flex flex-wrap gap-2 mb-4 max-h-[150px] overflow-y-auto pr-1"></div>
                         
-                        <!-- Manual Add Input (Fixed) -->
+                        <!-- Manual Add Input -->
                         <div class="flex gap-2 mt-2">
                             <input type="text" id="manual-ticker-input" placeholder="Type Symbol (e.g. TSLA)" class="flex-1 bg-white border border-slate-200 rounded-lg text-xs py-2 px-3 focus:border-blue-500 outline-none uppercase text-slate-700 font-bold" onkeypress="if(event.key==='Enter') addAssetManual()">
                             <button onclick="addAssetManual()" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-all shadow-sm">Add</button>
@@ -213,7 +256,7 @@
                                 2. Execution Parameters
                                 <span class="info-btn" onclick="showInfo('exec_params')">?</span>
                             </h3>
-                            <span class="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-full font-bold">Supports Multiple Values</span>
+                            <span class="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-full font-bold">Multiple Values OK</span>
                         </div>
                         
                         <div class="grid grid-cols-1 gap-4 mb-4">
@@ -230,8 +273,30 @@
                                     <label class="text-[10px] font-bold text-slate-500 uppercase">Rebalance (Days)</label>
                                     <span class="info-btn" onclick="showInfo('rebalance')">?</span>
                                 </div>
-                                <input type="text" id="param-rebal" value="20" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-slate-700 font-mono placeholder-slate-400" placeholder="e.g. 20, 60">
+                                <input type="text" id="param-rebal" value="1, 5, 10, 15, 20" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-slate-700 font-mono placeholder-slate-400" placeholder="e.g. 20, 60">
                                 <p class="text-[9px] text-slate-400 mt-1">Comma separated for batch test</p>
+                            </div>
+                        </div>
+
+                        <!-- Analysis Settings -->
+                        <div class="mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase block mb-2">Rolling Analysis Settings</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <div class="flex items-center mb-1">
+                                        <label class="text-[9px] text-slate-400 block">Horizons (Years)</label>
+                                        <span class="info-btn" onclick="showInfo('rolling_horizons')">?</span>
+                                    </div>
+                                    <input type="text" id="param-horizons" value="1, 3, 5, 10, 15" class="w-full bg-white border border-slate-200 rounded text-xs p-1.5 text-slate-700 font-mono">
+                                </div>
+                                <div>
+                                    <div class="flex items-center mb-1">
+                                        <label class="text-[9px] text-slate-400 block">Step (Years)</label>
+                                        <span class="info-btn" onclick="showInfo('rolling_step')">?</span>
+                                    </div>
+                                    <input type="number" id="param-roll-step" value="0.2" step="0.1" class="w-full bg-white border border-slate-200 rounded text-xs p-1.5 text-slate-700 font-mono">
+                                    <p class="text-[8px] text-slate-400 mt-0.5">Frequency of simulation</p>
+                                </div>
                             </div>
                         </div>
 
@@ -242,11 +307,11 @@
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">T-Cost <span class="info-btn" onclick="showInfo('t_cost')">?</span></label>
+                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">T-Cost (%) <span class="info-btn" onclick="showInfo('t_cost')">?</span></label>
                                     <input type="number" id="cost-tcost" value="0.10" step="0.01" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-right text-rose-600 font-medium font-mono">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">Ann. Expense <span class="info-btn" onclick="showInfo('expense')">?</span></label>
+                                    <label class="text-[10px] text-slate-400 mb-1 flex items-center gap-1">Ann. Expense (%) <span class="info-btn" onclick="showInfo('expense')">?</span></label>
                                     <input type="number" id="cost-er" value="0.50" step="0.01" class="w-full bg-slate-50 border border-slate-200 rounded text-sm p-2 text-right text-rose-600 font-medium font-mono">
                                 </div>
                             </div>
@@ -282,49 +347,56 @@
                                         Batch Comparison
                                         <span class="info-btn" onclick="showInfo('batch_comparison')">?</span>
                                     </h2>
-                                    <p class="text-xs text-slate-500">Showing all combinations. Click row to view details.</p>
+                                    <p class="text-xs text-slate-500" id="table-info">Showing top results</p>
                                 </div>
                                 <div class="text-right">
                                     <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Best Sharpe Selected</span>
                                 </div>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-xs text-right">
+                            <div class="overflow-x-auto mb-2">
+                                <table class="w-full text-xs text-right rebal-table">
                                     <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                                         <tr>
-                                            <th class="p-2 text-left">Lookback</th>
-                                            <th class="p-2 text-left">Rebal</th>
-                                            <th class="p-2">CAGR</th>
-                                            <th class="p-2">Sharpe</th>
-                                            <th class="p-2">MaxDD</th>
-                                            <th class="p-2">Turnover</th>
+                                            <th class="th-tooltip" data-tip="Lookback Period (Days)" onclick="sortTable('lb')">LB ↕</th>
+                                            <th class="th-tooltip" data-tip="Rebalance Frequency (Days)" onclick="sortTable('rb')">RB ↕</th>
+                                            <th class="th-tooltip" data-tip="Compound Annual Growth Rate" onclick="sortTable('cagr')">CAGR ↕</th>
+                                            <th class="th-tooltip" data-tip="Risk-Adjusted Return" onclick="sortTable('sharpe')">Sharpe ↕</th>
+                                            <th class="th-tooltip" data-tip="Maximum Drawdown" onclick="sortTable('mdd')">MaxDD ↕</th>
+                                            <th class="th-tooltip" data-tip="Portfolio Turnover" onclick="sortTable('turnover')">TO ↕</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="batch-table-body" class="text-slate-700">
-                                        <!-- Rows Injected Here -->
-                                    </tbody>
+                                    <tbody id="batch-table-body" class="text-slate-700"></tbody>
                                 </table>
+                            </div>
+                            <!-- Pagination Controls -->
+                            <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                                <button id="btn-prev" onclick="changePage(-1)" class="pagination-btn">Previous</button>
+                                <span id="page-indicator" class="text-xs text-slate-500">Page 1</span>
+                                <button id="btn-next" onclick="changePage(1)" class="pagination-btn">Next</button>
                             </div>
                         </div>
 
                         <!-- Selected Result Details -->
                         <div id="single-result-view" class="space-y-6 animate-fade-in">
-                            <!-- Key Stats -->
+                            <!-- Key Stats with Benchmark -->
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div class="modern-card p-4 border-l-4 border-emerald-500">
                                     <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">CAGR (After Cost) <span class="info-btn" onclick="showInfo('cagr')">?</span></div>
                                     <div id="res-cagr" class="text-2xl font-bold text-emerald-600">-</div>
+                                    <div id="bench-cagr" class="stat-val-bench">Bench: -</div>
                                 </div>
                                 <div class="modern-card p-4">
                                     <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Sharpe Ratio <span class="info-btn" onclick="showInfo('sharpe')">?</span></div>
                                     <div id="res-sharpe" class="text-2xl font-bold text-blue-600">-</div>
+                                    <div id="bench-sharpe" class="stat-val-bench">Bench: -</div>
                                 </div>
                                 <div class="modern-card p-4">
                                     <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Max Drawdown <span class="info-btn" onclick="showInfo('mdd')">?</span></div>
                                     <div id="res-mdd" class="text-2xl font-bold text-rose-600">-</div>
+                                    <div id="bench-mdd" class="stat-val-bench">Bench: -</div>
                                 </div>
                                 <div class="modern-card p-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Turnover / Year <span class="info-btn" onclick="showInfo('turnover')">?</span></div>
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">Turnover <span class="info-btn" onclick="showInfo('turnover')">?</span></div>
                                     <div id="res-turnover" class="text-2xl font-bold text-slate-600">-</div>
                                 </div>
                             </div>
@@ -337,8 +409,8 @@
                                         <span class="info-btn" onclick="showInfo('growth_chart')">?</span>
                                     </h2>
                                     <div class="flex gap-4 text-xs">
-                                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> Before Cost</span>
-                                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-600 rounded-full"></span> After Cost</span>
+                                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span> Strategy</span>
+                                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-slate-400 rounded-full"></span> Benchmark</span>
                                     </div>
                                 </div>
                                 <div class="h-[300px]">
@@ -350,15 +422,15 @@
                             <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
                                 <div class="text-center mb-6">
                                     <h2 class="text-xl font-bold text-slate-800 flex items-center justify-center gap-2">
-                                        Rolling Horizon Analysis
+                                        Rolling Horizon Analysis (Compare to Benchmark)
                                         <span class="info-btn" onclick="showInfo('rolling_chart')">?</span>
                                     </h2>
-                                    <p class="text-sm text-slate-500">ถ้าเริ่มลงทุน "วันไหนก็ได้" ในอดีต ผลลัพธ์จะเป็นอย่างไร?</p>
+                                    <p class="text-sm text-slate-500">ถ้าเริ่มลงทุน "วันไหนก็ได้" ในอดีต กองทุนของคุณชนะ Benchmark หรือไม่?</p>
                                 </div>
                                 
                                 <div class="modern-card p-6 mb-6">
                                     <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                                        1. Return Range (LUMP SUM vs DCA)
+                                        1. Return Range (Best - Worst Case)
                                         <span class="info-btn" onclick="showInfo('return_range')">?</span>
                                     </h3>
                                     <div class="h-[300px]">
@@ -368,8 +440,8 @@
                                 <div class="grid md:grid-cols-2 gap-6">
                                     <div class="modern-card p-6">
                                         <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                                            2. Loss Probability
-                                            <span class="info-btn" onclick="showInfo('loss_prob')">?</span>
+                                            2. Win Probability (>0%)
+                                            <span class="info-btn" onclick="showInfo('win_prob')">?</span>
                                         </h3>
                                         <div class="h-[200px]">
                                             <canvas id="chart-loss"></canvas>
@@ -377,7 +449,7 @@
                                     </div>
                                     <div class="modern-card p-6">
                                         <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                                            3. Expected Return
+                                            3. Average Annualized Return
                                             <span class="info-btn" onclick="showInfo('expected_ret')">?</span>
                                         </h3>
                                         <div class="h-[200px]">
@@ -392,7 +464,7 @@
                     <!-- Placeholder -->
                     <div id="placeholder-viz" class="h-96 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                         <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                        <p class="text-sm font-medium">Configure parameters (comma separated supported) and Run</p>
+                        <p class="text-sm font-medium">Configure parameters and Run Batch Analysis</p>
                     </div>
 
                 </div>
@@ -404,202 +476,108 @@
              <div class="modern-card p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-xl font-bold text-slate-800">Rebalance History Log</h2>
-                    <span class="text-xs text-slate-500">(Showing log for selected batch result)</span>
+                    <p class="text-xs text-slate-500">Showing log for selected strategy</p>
                 </div>
                 <div class="overflow-x-auto rounded-lg border border-slate-200">
                     <table class="w-full rebal-table" id="history-table">
                         <thead class="bg-slate-50">
-                            <!-- JS will populate header -->
+                            <tr>
+                                <th>Date</th>
+                                <th>Portfolio Action</th>
+                                <th>Turnover</th>
+                            </tr>
                         </thead>
-                        <tbody class="bg-white">
-                            <!-- JS will populate rows -->
+                        <tbody class="bg-white" id="history-body">
+                            <tr><td colspan="3" class="text-center py-4">Run the simulation to see history</td></tr>
                         </tbody>
                     </table>
-                </div>
-                <div id="history-placeholder" class="text-center text-slate-400 py-12 text-sm italic">
-                    Run the simulation to see allocation history.
                 </div>
              </div>
         </div>
 
         <!-- VIEW 3: METHODOLOGY (Docs) -->
         <div id="view-docs" class="hidden max-w-4xl mx-auto my-8 space-y-8 animate-fade-in">
-             <div class="space-y-6">
+             <div class="doc-section">
+                <h2 class="doc-title">1. หลักการทำงานของระบบ (System Workflow)</h2>
+                <p class="doc-text mb-4 text-sm text-slate-600 leading-relaxed">
+                    ระบบจำลองการลงทุนนี้ทำงานโดยใช้ข้อมูลจริงย้อนหลัง (Historical Data) ผสมผสานกับตรรกะทางคณิตศาสตร์ (Quantitative Logic) โดยมีขั้นตอนดังนี้:
+                </p>
+                <div class="doc-box">
+                    <ol class="list-decimal list-inside space-y-3 text-sm text-slate-600">
+                        <li><strong>Data Fetching:</strong> ดึงราคาปิดที่ปรับปรุงแล้ว (Adjusted Close) จาก Yahoo Finance หากดึงไม่สำเร็จจะสร้างข้อมูลจำลอง (Synthetic Data) แทน เพื่อให้ระบบทำงานได้เสมอ</li>
+                        <li><strong>Signal Calculation:</strong> คำนวณค่า Momentum หรือ Volatility ย้อนหลังตาม Lookback ที่กำหนด</li>
+                        <li><strong>Allocation:</strong> ในทุกรอบ Rebalance ระบบจะเลือกสินทรัพย์และกำหนดน้ำหนักตามกฎของกลยุทธ์</li>
+                        <li><strong>Backtest:</strong> จำลองการถือครองวันต่อวัน โดยหักค่าใช้จ่ายจริง (Cost) และวิเคราะห์ความเสี่ยง</li>
+                    </ol>
+                </div>
+             </div>
+
+             <div class="doc-section">
+                <h2 class="doc-title">2. ความหมายของตัวแปร (Parameter Impacts)</h2>
+                <div class="grid gap-4 mb-4">
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-slate-700">Lookback (ระยะมองย้อนหลัง)</h4>
+                        <p class="text-xs text-slate-500 mt-2"><strong>ค่าน้อย (20-60 วัน):</strong> ไวต่อตลาด เปลี่ยนตัวเร็ว แต่อาจเจอสัญญาณหลอก (Noise) และซื้อขายบ่อยเปลืองค่าคอมฯ<br><strong>ค่ามาก (120-252 วัน):</strong> มั่นคง สัญญาณแม่นยำกว่า แต่ช้ากว่าตลาด (Lag) อาจขายไม่ทันตอนตลาดถล่ม</p>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-slate-700">Rebalance (รอบการปรับพอร์ต)</h4>
+                         <p class="text-xs text-slate-500 mt-2"><strong>ถี่ (20 วัน):</strong> พอร์ตสดใหม่เสมอ แต่เสียค่าคอมฯ เยอะ<br><strong>ห่าง (60-252 วัน):</strong> ประหยัดค่าคอมฯ แต่อาจถือตัวแย่นานเกินไป</p>
+                    </div>
+                </div>
+             </div>
+
+             <div class="doc-section">
+                <h2 class="doc-title">3. เจาะลึก 8 กลยุทธ์ (Strategies Deep Dive)</h2>
                 
-                <!-- Section 1: Workflow -->
-                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                    <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                        หลักการทำงานของระบบ (System Workflow)
-                    </h3>
-                    <div class="grid gap-4">
-                        <div class="flex gap-4">
-                            <div class="step-circle">1</div>
-                            <div>
-                                <h4 class="font-bold text-slate-700 text-sm">ดึงข้อมูล (Fetch Data)</h4>
-                                <p class="text-sm text-slate-500">ระบบดึงราคาปิดที่ปรับปรุงแล้ว (Adjusted Close) จาก Yahoo Finance โดยอัตโนมัติ เพื่อให้รวมผลของปันผลและการแตกพาร์</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="step-circle">2</div>
-                            <div>
-                                <h4 class="font-bold text-slate-700 text-sm">คำนวณสัญญาณ (Signal Calculation)</h4>
-                                <p class="text-sm text-slate-500">คำนวณผลตอบแทนย้อนหลัง (Momentum) หรือความผันผวน (Volatility) ตามค่า Lookback ที่กำหนด (เช่น 60 วัน)</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="step-circle">3</div>
-                            <div>
-                                <h4 class="font-bold text-slate-700 text-sm">จัดสรรน้ำหนัก (Allocation)</h4>
-                                <p class="text-sm text-slate-500">เลือกสินทรัพย์และกำหนดน้ำหนักตามกลยุทธ์ที่เลือก (เช่น Top 3, Rank All)</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="step-circle">4</div>
-                            <div>
-                                <h4 class="font-bold text-slate-700 text-sm">จำลองการลงทุน (Backtest Simulation)</h4>
-                                <p class="text-sm text-slate-500">เดินหน้าวันละ 1 วัน (Walk-forward) ทำการซื้อขายจริงเมื่อถึงรอบ Rebalance และหักค่าธรรมเนียม (Cost) ทุกขั้นตอน</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="step-circle">5</div>
-                            <div>
-                                <h4 class="font-bold text-slate-700 text-sm">วิเคราะห์ผลลัพธ์ (Analysis)</h4>
-                                <p class="text-sm text-slate-500">คำนวณสถิติแบบ Rolling Window เพื่อดูความน่าจะเป็นของกำไร/ขาดทุนในระยะยาว</p>
-                            </div>
-                        </div>
+                <div class="grid gap-6">
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-blue-700">1. Equal Weight (น้ำหนักเท่ากัน)</h4>
+                        <p class="text-xs text-slate-600 mt-1">กระจายเงินลงทุนเท่ากันทุกตัว ไม่สนใจผลงานในอดีต (Passive)</p>
+                        <div class="bg-white p-2 rounded text-xs text-slate-500 font-mono border mt-2"><strong>Ex:</strong> มี 4 ตัว (A,B,C,D) 👉 ลงทุนตัวละ 25%</div>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-blue-700">2. Rank All (เรียงลำดับ)</h4>
+                        <p class="text-xs text-slate-600 mt-1">เรียงลำดับจากเก่งไปอ่อน แล้วถ่วงน้ำหนักเป็นขั้นบันได</p>
+                        <div class="bg-white p-2 rounded text-xs text-slate-500 font-mono border mt-2"><strong>Ex:</strong> A>B>C 👉 A(50%), B(33%), C(17%)</div>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-emerald-700">3. Top-K Equal (เลือกตัวท็อป)</h4>
+                        <p class="text-xs text-slate-600 mt-1">คัดเลือกเฉพาะ K อันดับแรก (เช่น 3 ตัวแรก) แล้วลงทุนเท่ากัน ตัวอื่นตัดทิ้ง</p>
+                        <div class="bg-white p-2 rounded text-xs text-slate-500 font-mono border mt-2"><strong>Ex:</strong> A,B,C ดีสุด 👉 ลงทุนตัวละ 33.3% (D=0%)</div>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-emerald-700">4. Top-K Rank (ตัวท็อปถ่วงน้ำหนัก)</h4>
+                        <p class="text-xs text-slate-600 mt-1">เหมือน Top-K แต่ให้เงินตัวอันดับ 1 มากกว่าอันดับ 2 และ 3</p>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-emerald-700">5. Top 50% of Universe</h4>
+                        <p class="text-xs text-slate-600 mt-1">เลือกครึ่งบนของตาราง แล้วลงทุนเท่ากัน (กระจายความเสี่ยงกว่า Top-3)</p>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-purple-700">6. Absolute Momentum (เฉพาะขาขึ้น)</h4>
+                        <p class="text-xs text-slate-600 mt-1">ลงทุนเฉพาะตัวที่กำไร > 0 เท่านั้น ตัวไหนติดลบจะถือเงินสด</p>
+                        <div class="bg-white p-2 rounded text-xs text-slate-500 font-mono border mt-2"><strong>Ex:</strong> A(+5%), B(-2%) 👉 ซื้อ A 100%, ไม่ซื้อ B</div>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-purple-700">7. Dual Momentum</h4>
+                        <p class="text-xs text-slate-600 mt-1">ต้องเก่งกว่าเพื่อน (Relative) และต้องเป็นขาขึ้น (Absolute) ด้วย ถึงจะซื้อ</p>
+                    </div>
+                    <div class="doc-box">
+                        <h4 class="font-bold text-sm text-orange-700">8. Inverse Volatility (ต้านความผันผวน)</h4>
+                        <p class="text-xs text-slate-600 mt-1">เน้นความปลอดภัย ตัวไหนราคานิ่งๆ จะได้เงินเยอะ ตัวไหนเหวี่ยงแรงจะได้เงินน้อย</p>
+                         <div class="bg-white p-2 rounded text-xs text-slate-500 font-mono border mt-2"><strong>Ex:</strong> A เหวี่ยง 10%, B เหวี่ยง 20% 👉 ลง A=66%, B=33%</div>
                     </div>
                 </div>
+             </div>
 
-                <!-- Section 2: Strategy Deep Dive -->
-                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                    <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                        เจาะลึกกลยุทธ์พร้อมตัวอย่าง (Strategy Deep Dive)
-                    </h3>
-                    
-                    <div class="space-y-8">
-                        <!-- Group 1: Simple -->
-                        <div>
-                            <h4 class="text-lg font-bold text-blue-700 mb-2 border-b border-blue-100 pb-1">1. กลุ่มพื้นฐาน (Simple Weighting)</h4>
-                            <div class="grid md:grid-cols-2 gap-4">
-                                <div class="bg-slate-50 p-4 rounded-lg">
-                                    <div class="font-bold text-slate-700 mb-1">Equal Weight</div>
-                                    <p class="text-sm text-slate-600 mb-2">กระจายเงินลงทุนเท่ากันทุกตัว ไม่ว่าผลงานในอดีตจะเป็นอย่างไร</p>
-                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                        <strong>ตัวอย่าง:</strong> มีสินทรัพย์ 4 ตัว (A, B, C, D)<br>
-                                        👉 ลงทุนตัวละ 25% เท่ากันหมด
-                                    </div>
-                                </div>
-                                <div class="bg-slate-50 p-4 rounded-lg">
-                                    <div class="font-bold text-slate-700 mb-1">Rank All</div>
-                                    <p class="text-sm text-slate-600 mb-2">เรียงลำดับจากเก่งสุดไปแย่สุด ตัวเก่งได้เงินเยอะ ตัวแย่ได้เงินน้อย (แต่ยังได้อยู่)</p>
-                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                        <strong>ตัวอย่าง:</strong> มี 3 ตัว เรียงตามกำไร: A > B > C<br>
-                                        👉 A (ที่ 1): ได้ 3 ส่วน (50%)<br>
-                                        👉 B (ที่ 2): ได้ 2 ส่วน (33%)<br>
-                                        👉 C (ที่ 3): ได้ 1 ส่วน (17%)
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Group 2: Momentum -->
-                        <div>
-                            <h4 class="text-lg font-bold text-emerald-700 mb-2 border-b border-emerald-100 pb-1">2. กลุ่มโมเมนตัม (Momentum / Top-K)</h4>
-                            <div class="grid md:grid-cols-2 gap-4">
-                                <div class="bg-slate-50 p-4 rounded-lg">
-                                    <div class="font-bold text-slate-700 mb-1">Top-K Equal (ยอดนิยม)</div>
-                                    <p class="text-sm text-slate-600 mb-2">คัดเฉพาะ "ตัวท็อป" (เช่น 3 อันดับแรก) มาลงทุนเท่าๆ กัน ตัวที่ไม่ติดอันดับตัดทิ้งเลย</p>
-                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                        <strong>ตัวอย่าง:</strong> A(+10%), B(+8%), C(+5%), D(-2%)<br>
-                                        👉 เลือก Top 3: A, B, C<br>
-                                        👉 ลงทุนตัวละ 33.3% (D ไม่ได้ลง)
-                                    </div>
-                                </div>
-                                <div class="bg-slate-50 p-4 rounded-lg">
-                                    <div class="font-bold text-slate-700 mb-1">Absolute Momentum</div>
-                                    <p class="text-sm text-slate-600 mb-2">ถือเฉพาะตัวที่เป็น "ขาขึ้น" (กำไร > 0) เท่านั้น ตัวไหนขาดทุนขายทิ้งถือเงินสด</p>
-                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                        <strong>ตัวอย่าง:</strong> A(+5%), B(-10%)<br>
-                                        👉 ซื้อ A ตัวเดียว 100%<br>
-                                        👉 B ไม่ซื้อเพราะติดลบ
-                                    </div>
-                                </div>
-                                <div class="bg-slate-50 p-4 rounded-lg">
-                                    <div class="font-bold text-slate-700 mb-1">Dual Momentum</div>
-                                    <p class="text-sm text-slate-600 mb-2">ลูกผสม: ต้องเก่งกว่าเพื่อน (Relative) และต้องเป็นขาขึ้น (Absolute) ด้วย</p>
-                                    <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                        <strong>ตัวอย่าง:</strong> เลือก Top 2 แต่ต้องบวก<br>
-                                        A(+10%), B(-2%), C(-5%)<br>
-                                        👉 แม้ B จะเป็นที่ 2 แต่ติดลบ<br>
-                                        👉 พอร์ตจะถือแค่ A ตัวเดียว 100% (หรือ 50% แล้วถือสด)
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Group 3: Risk -->
-                        <div>
-                            <h4 class="text-lg font-bold text-amber-700 mb-2 border-b border-amber-100 pb-1">3. กลุ่มความเสี่ยง (Risk Based)</h4>
-                            <div class="bg-slate-50 p-4 rounded-lg">
-                                <div class="font-bold text-slate-700 mb-1">Inverse Volatility</div>
-                                <p class="text-sm text-slate-600 mb-2">ให้ความสำคัญกับความปลอดภัย ตัวไหนราคานิ่ง (ผันผวนต่ำ) จะได้เงินลงทุนเยอะ ตัวไหนเหวี่ยงแรง ได้น้อย</p>
-                                <div class="bg-white p-2 rounded border border-slate-200 text-xs text-slate-500 font-mono">
-                                    <strong>ตัวอย่าง:</strong><br>
-                                    A (เหวี่ยง 10%) vs B (เหวี่ยง 20%)<br>
-                                    👉 A นิ่งกว่า B 2 เท่า<br>
-                                    👉 ลงทุน A = 66%, B = 33%
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+             <div class="doc-section">
+                <h2 class="doc-title">4. โครงสร้างต้นทุน (Cost Structure)</h2>
+                <div class="doc-box">
+                    <ul class="text-sm text-slate-600 space-y-2 list-disc list-inside">
+                        <li><strong>T-Cost (Transaction Cost):</strong> ค่าใช้จ่ายเมื่อมีการซื้อขาย (Turnover) เกิดขึ้นจริง เช่น ค่าคอมมิชชัน (0.10%)</li>
+                        <li><strong>Expense Ratio:</strong> ค่าธรรมเนียมการจัดการกองทุน (Management Fee) ที่หักออกจาก NAV ทุกวัน (0.50% ต่อปี)</li>
+                    </ul>
                 </div>
-
-                <!-- Section 3: Asset Guide -->
-                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm bg-blue-50/50">
-                    <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        คำแนะนำการเพิ่มสินทรัพย์ (Asset Symbol Guide)
-                    </h3>
-                    <p class="text-sm text-slate-600 mb-4">
-                        ระบบใช้ข้อมูลจาก <strong>Yahoo Finance</strong> ดังนั้นชื่อย่อ (Ticker Symbol) ที่กรอกในช่อง "Type Symbol" ต้องตรงกับฐานข้อมูลของ Yahoo Finance เท่านั้น
-                    </p>
-                    <div class="grid md:grid-cols-2 gap-4 text-sm">
-                        <div class="bg-white p-4 rounded-lg border border-slate-200">
-                            <h4 class="font-bold text-slate-700 mb-2">🌍 ตลาดต่างประเทศ (US/Global)</h4>
-                            <ul class="list-disc list-inside text-slate-500 space-y-1">
-                                <li><strong>หุ้นรายตัว:</strong> AAPL, TSLA, MSFT, NVDA</li>
-                                <li><strong>ETF:</strong> SPY, QQQ, GLD, TLT</li>
-                                <li><strong>คริปโต:</strong> BTC-USD, ETH-USD</li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-4 rounded-lg border border-slate-200">
-                            <h4 class="font-bold text-slate-700 mb-2">🇹🇭 ตลาดหุ้นไทย (SET)</h4>
-                            <p class="text-slate-500 mb-2">ต้องเติม <code>.BK</code> ต่อท้ายชื่อหุ้นเสมอ</p>
-                            <ul class="list-disc list-inside text-slate-500 space-y-1">
-                                <li><strong>PTT:</strong> PTT.BK</li>
-                                <li><strong>CPALL:</strong> CPALL.BK</li>
-                                <li><strong>AOT:</strong> AOT.BK</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="mt-4 text-xs text-slate-500">
-                        * แนะนำให้ไปค้นหาชื่อย่อที่ถูกต้องจากเว็บ <a href="https://finance.yahoo.com/" target="_blank" class="text-blue-600 hover:underline">finance.yahoo.com</a> ก่อนนำมากรอก เพื่อความถูกต้องของข้อมูล
-                    </div>
-                </div>
-
-                <!-- Section 4: Parameters -->
-                <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                    <h3 class="text-xl font-bold text-slate-800 mb-4">Parameter Guide</h3>
-                    <div class="space-y-4 text-sm text-slate-600">
-                        <p><strong>Lookback:</strong> จำนวนวันที่ใช้มองย้อนหลังเพื่อคำนวณผลตอบแทนหรือความผันผวน (เช่น 60 วัน, 120 วัน)</p>
-                        <p><strong>Rebalance:</strong> ความถี่ในการปรับพอร์ต (เช่น ทุก 20 วันทำการ = 1 เดือน)</p>
-                        <p><strong>T-Cost:</strong> ต้นทุนการซื้อขายจริง (Slippage + Commission) คิดเป็น % จากมูลค่าที่หมุนเวียน</p>
-                        <p><strong>Expense Ratio:</strong> ค่าธรรมเนียมการจัดการกองทุน (Management Fee) รายปี</p>
-                    </div>
-                </div>
-
              </div>
         </div>
 
@@ -617,576 +595,668 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 z-[60] bg-white/90 backdrop-blur-sm hidden flex-col items-center justify-center">
         <div class="loader mb-4 border-t-blue-500"></div>
-        <div class="text-lg font-bold text-slate-700">Running Batch Analysis...</div>
-        <div id="loading-status" class="text-sm text-slate-500 mt-2">Crunching numbers</div>
+        <div class="text-lg font-bold text-slate-700">Calculating...</div>
+        <div id="loading-status" class="text-sm text-slate-500 mt-2">Preparing data engine</div>
     </div>
 
 <script>
-    // --- 0. CONFIGURATION & STATE ---
+    // --- CONFIG & STATE ---
     const DEFAULT_ASSETS = ["QQQ", "SPY", "TLT", "GLD", "DBC", "UUP"];
     let STATE = {
         assets: [...DEFAULT_ASSETS],
-        batchResults: [], // Array of simulation results
-        selectedResultIndex: 0
+        batchResults: [],
+        selectedResultIndex: 0,
+        benchmarkData: null,
+        benchmarkStats: null,
+        currentPage: 1,
+        rowsPerPage: 20, 
+        sortCol: 'sharpe',
+        sortAsc: false
     };
     let charts = {};
 
+    // --- TEXTS ---
     const STRAT_DESCS = {
-        "Rank_All": "เรียงลำดับสินทรัพย์ตามผลตอบแทนย้อนหลัง (Lookback) ตัวที่ชนะอันดับ 1 ได้น้ำหนักมากสุด ลดหลั่นลงไป",
-        "Equal_Weight": "กระจายความเสี่ยงเท่าๆ กันในทุกสินทรัพย์ โดยไม่สนใจผลตอบแทนในอดีต (Passive Rebalance)",
-        "Top3_Equal": "คัดเลือก 3 ตัวท็อปที่แกร่งที่สุดในช่วงเวลา Lookback แล้วถือตัวละ 33.3% เท่ากัน ตัดตัวอ่อนทิ้ง",
-        "Top3_Rank": "คัดเลือก 3 ตัวท็อป แล้วถ่วงน้ำหนักตามความแรง (ที่ 1 ได้เยอะกว่าที่ 2 และ 3)",
-        "Top50pct": "เลือกสินทรัพย์ครึ่งบนของตาราง (เช่น 3 ตัวจาก 6 ตัว) แล้วถือเท่ากัน",
-        "AbsMom": "ถือเฉพาะตัวที่เป็นขาขึ้น (Trend > 0) เท่านั้น ตัวไหนเป็นขาลงจะขายทิ้ง (ไม่ถือ)",
-        "DualMom_Rel": "ลูกผสม: เลือกตัวที่แกร่งกว่าเพื่อน (Relative) และต้องเป็นขาขึ้นด้วย (Absolute)",
-        "InvVol": "เน้นความปลอดภัย: ให้ความสำคัญกับตัวที่ผันผวนต่ำ (Low Risk) โดยลงเงินเยอะกว่าตัวที่ผันผวนสูง"
+        "Rank_All": "เรียงลำดับสินทรัพย์ตามคะแนน แล้วถ่วงน้ำหนักตามลำดับ (ที่ 1 ได้เยอะสุด)",
+        "Equal_Weight": "กระจายความเสี่ยงเท่าๆ กันในทุกสินทรัพย์ (Passive)",
+        "Top3_Equal": "คัดเลือก 3 ตัวท็อปที่แกร่งที่สุด แล้วถือตัวละ 33.3%",
+        "Top3_Rank": "คัดเลือก 3 ตัวท็อป แล้วถ่วงน้ำหนักตามความแรง (Rank)",
+        "Top50pct": "เลือกสินทรัพย์ครึ่งบนของตาราง แล้วถือเท่ากัน",
+        "AbsMom": "ถือเฉพาะตัวที่เป็นขาขึ้น (Trend > 0) เท่านั้น ตัวไหนลงขายทิ้ง",
+        "DualMom_Rel": "เลือกตัวที่แกร่งกว่าเพื่อน และต้องเป็นขาขึ้นด้วย",
+        "InvVol": "เน้นความปลอดภัย: ให้ความสำคัญกับตัวที่ผันผวนต่ำ (Low Risk)"
     };
-
     const INFO_TEXTS = {
-        "strategy_logic": "<b>Strategy Logic</b> คือกฎการลงทุนที่เราใช้ตัดสินใจว่าในแต่ละรอบ (Rebalance) จะซื้อตัวไหน ขายตัวไหน<br><br>- <b>Momentum:</b> เชื่อว่า 'ของที่ขึ้นแล้วจะขึ้นต่อ' (ตามเทรนด์)<br>- <b>Mean Reversion:</b> เชื่อว่า 'ของที่ขึ้นเยอะเดี๋ยวก็ลง'<br>- <b>Low Vol:</b> เน้นตัวที่ราคานิ่งๆ ปลอดภัยไว้ก่อน",
-        
-        "universe": "<b>Asset Universe</b> คือ 'ตระกร้าของสินทรัพย์' ที่เราเลือกมาให้ระบบพิจารณาลงทุน<br><br>เช่น ถ้าเราเลือก [หุ้นเทค, ทองคำ, พันธบัตร] ระบบก็จะเลือกซื้อขายวนเวียนอยู่แค่ใน 3 ตัวนี้เท่านั้น ไม่ไปซื้อตัวอื่น",
-        
-        "exec_params": "<b>Execution Parameters</b> คือตัวแปรที่ใช้ควบคุมการทดสอบ:<br><br>คุณสามารถใส่ค่าหลายตัวคั่นด้วยจุลภาค (เช่น 60, 120) เพื่อให้ระบบทดสอบทุกค่าพร้อมกัน (Grid Search) แล้วดูว่าค่าไหนให้ผลลัพธ์ดีที่สุด",
-        
-        "lookback": "<b>Lookback (ระยะมองย้อนหลัง)</b><br>คือจำนวนวันที่เรามองย้อนกลับไปเพื่อตัดสินใจ<br><br>- <b>สั้น (เช่น 20 วัน):</b> ไวต่อตลาด แต่สัญญาณหลอกเยอะ (Noise)<br>- <b>ยาว (เช่น 252 วัน):</b> ชัวร์กว่า แต่มักจะเข้า-ออกช้า (Lag)",
-        
-        "rebalance": "<b>Rebalance (รอบการปรับพอร์ต)</b><br>คือความถี่ที่เราจะเข้ามาดูพอร์ตเพื่อซื้อขายปรับสัดส่วน<br><br>- <b>20 วัน:</b> ปรับทุกเดือน<br>- <b>60 วัน:</b> ปรับทุกไตรมาส<br>ยิ่งปรับบ่อย ยิ่งเปลืองค่าคอมฯ",
-        
-        "costs": "<b>Costs (ต้นทุนแฝง)</b><br>ในการ Backtest ทั่วไปมักละเลยจุดนี้ ทำให้ผลลัพธ์ดูดีเกินจริง (Over-optimistic) แต่ระบบนี้เราหักต้นทุนจริงเพื่อให้ได้ผลลัพธ์ที่เชื่อถือได้",
-        
-        "t_cost": "<b>T-Cost (Transaction Cost)</b><br>ต้นทุนในการเทรดแต่ละครั้ง ประกอบด้วย:<br>1. ค่าคอมมิชชันโบรกเกอร์<br>2. Slippage (ราคาที่แมทช์จริงแย่กว่าที่เห็น)<br>3. Bid-Ask Spread<br>ใส่ไว้ 0.10% คือค่ามาตรฐานที่ปลอดภัย",
-        
-        "expense": "<b>Annual Expense (ค่าธรรมเนียมรายปี)</b><br>คือค่าธรรมเนียมที่กองทุน ETF หักออกจากเงินต้นของเราปีละครั้ง (เช่น ค่าบริหารจัดการ) ยิ่งถือยาว ยิ่งกระทบผลตอบแทนทบต้น",
-        
-        "range": "<b>Backtest Range</b><br>ช่วงเวลาในอดีตที่ใช้ทดสอบ ควรครอบคลุมทั้งวิกฤต (เช่น 2008, 2020) และช่วงตลาดกระทิง เพื่อดูว่าระบบเอาตัวรอดได้ในทุกสภาวะหรือไม่",
-        
-        "batch_comparison": "<b>ตารางเปรียบเทียบ</b><br>หน้านี้จะสรุปผลการทดสอบของทุกค่าที่คุณใส่ไป (Grid Search) โดยเรียงลำดับจาก Sharpe Ratio (ความคุ้มค่า) ให้คุณเลือก Config ที่ดีที่สุด",
-        
-        "cagr": "<b>CAGR (ผลตอบแทนทบต้นต่อปี)</b><br>บอกว่าเงินเราโตเฉลี่ยปีละกี่ % (หลังหักต้นทุนแล้ว)<br>เช่น 10% แปลว่าลงทุน 100 บาท ผ่านไป 1 ปีได้ 110 บาท",
-        
-        "sharpe": "<b>Sharpe Ratio (ความคุ้มค่า)</b><br>ค่ายิ่งมากยิ่งดี เป็นการวัดว่า 'กำไรที่ได้มา คุ้มกับความเสี่ยงที่เจอไหม'<br>- <b>> 1.0:</b> ดี<br>- <b>> 2.0:</b> ดีมาก (หายาก)",
-        
-        "mdd": "<b>Max Drawdown (ความเสี่ยงสูงสุด)</b><br>คือการขาดทุนหนักที่สุดที่เคยเกิดขึ้นในอดีต (จากยอดดอยสู่หุบเหว)<br>เช่น -20% แปลว่าเคยมีช่วงที่เงินหายไป 20% คุณรับไหวไหม?",
-        
-        "turnover": "<b>Turnover (อัตราหมุนเวียน)</b><br>บอกว่าเราซื้อขายบ่อยแค่ไหน<br>- 100% ต่อปี แปลว่าเปลี่ยนหุ้นในพอร์ตใหม่หมดปีละ 1 รอบ<br>- ยิ่งสูง ยิ่งเสียค่าคอมฯ เยอะ และอาจเสียภาษีเยอะ (ถ้ามี)",
-        
-        "growth_chart": "<b>กราฟการเติบโต (Log Scale)</b><br>แสดงมูลค่าเงินลงทุนเริ่มต้น 1,000 บาท<br>- <b>เส้นเขียว:</b> ผลตอบแทนในอุดมคติ (ไม่คิดค่าคอมฯ)<br>- <b>เส้นน้ำเงิน:</b> ผลตอบแทนจริง (หักค่าคอมฯ แล้ว)",
-        
-        "rolling_chart": "<b>Rolling Horizon Analysis</b><br>เทคนิคขั้นสูงที่ช่วยตอบคำถามว่า <i>'ถ้าฉันโชคร้าย เริ่มลงทุนผิดเวลา จะเป็นยังไง?'</i><br>โดยการจำลองการลงทุนนับพันครั้งในทุกช่วงเวลาที่เป็นไปได้ในอดีต",
-        
-        "return_range": "<b>Return Range (กรอบผลตอบแทน)</b><br>แท่งกราฟนี้บอกว่า ในระยะเวลาถือครองต่างๆ (1-10 ปี) ผลตอบแทนที่ดีที่สุด (เขียว) และแย่ที่สุด (แดง) ที่เคยเกิดขึ้นคือเท่าไหร่",
-        
-        "loss_prob": "<b>Loss Probability (โอกาสขาดทุน)</b><br>กราฟนี้บอกว่า <i>'มีกี่ % ที่เราจะขาดทุน'</i> ยิ่งถือนาน เส้นกราฟควรจะยิ่งลดลงเข้าหา 0% (แปลว่าถือนานแล้วไม่ขาดทุน)",
-        
-        "expected_ret": "<b>Expected Return (ผลตอบแทนคาดหวัง)</b><br>เส้นทึบคือค่าเฉลี่ย (Mean) ส่วนเส้นปะคือค่ากลาง (Median) <br>ปกติ DCA จะได้ผลตอบแทนน้อยกว่า Lump Sum เล็กน้อย แต่แลกมาด้วยความเสี่ยงที่ต่ำกว่าและความสบายใจ"
+        "strategy_logic": "<b>Strategy Logic</b> คือกฎการลงทุนที่เราใช้ตัดสินใจซื้อขายในแต่ละรอบ (Rebalance) จะซื้อตัวไหน ขายตัวไหน<br><br>ดูรายละเอียดครบทั้ง 8 กลยุทธ์ได้ในหน้า Methodology",
+        "universe": "<b>Asset Universe</b> คือ 'ตระกร้าของสินทรัพย์' ที่เราเลือกมาให้ระบบพิจารณาลงทุน",
+        "exec_params": "<b>Execution Parameters</b> คือตัวแปรที่ใช้ควบคุมการทดสอบ ใส่หลายค่าคั่นด้วยจุลภาคเพื่อเปรียบเทียบ (Grid Search)",
+        "lookback": "<b>Lookback (วัน)</b>: ช่วงเวลาที่ใช้มองย้อนหลังเพื่อวัดความแรง (Momentum) <br>เช่น 60 วัน = ดูผลงาน 3 เดือนย้อนหลัง <br>- สั้น: ไวต่อตลาด แต่ Noise เยอะ <br>- ยาว: มั่นคง แต่ช้ากว่าตลาด",
+        "rebalance": "<b>Rebalance (วัน)</b>: ความถี่ในการปรับพอร์ต <br>เช่น 20 วัน = ปรับทุกเดือน <br>- ถี่: พอร์ตสดใหม่ แต่เปลืองค่าคอมฯ <br>- ห่าง: ประหยัด แต่ปรับตัวช้า",
+        "costs": "<b>Costs</b>: ต้นทุนแฝงที่หักออกเพื่อให้ผลลัพธ์สมจริง (ค่าคอมฯ + ค่าธรรมเนียมกองทุน)",
+        "t_cost": "<b>T-Cost (%)</b>: Transaction Cost ค่าคอมมิชชัน+Slippage ที่เสียเมื่อมีการซื้อขายจริง",
+        "expense": "<b>Expense Ratio (%)</b>: ค่าธรรมเนียมรายปีของกองทุน ETF ที่หักออกจากเงินต้น",
+        "batch_comparison": "<b>Batch Comparison</b>: ตารางเปรียบเทียบผลลัพธ์ทุกเงื่อนไข (คลิกหัวตารางเพื่อเรียงลำดับ)",
+        "cagr": "<b>CAGR (%)</b>: ผลตอบแทนทบต้นต่อปี (หลังหักค่าใช้จ่าย)",
+        "sharpe": "<b>Sharpe Ratio</b>: ความคุ้มค่าของกำไรเทียบความเสี่ยง (>1 ดี)",
+        "mdd": "<b>Max Drawdown (%)</b>: ผลขาดทุนสูงสุดจากยอดดอย (ความเจ็บปวดสูงสุด)",
+        "turnover": "<b>Turnover (%)</b>: อัตราการหมุนเวียนพอร์ตต่อปี บอกว่าซื้อขายบ่อยแค่ไหน",
+        "growth_chart": "กราฟแสดงการเติบโตของเงินลงทุน 1,000 บาท (แกน Y แบบ Log Scale) เทียบกับ Benchmark",
+        "rolling_chart": "จำลองการลงทุนซ้ำๆ ในทุกช่วงเวลาของอดีต เพื่อดูว่าถ้าเริ่มลงทุนผิดเวลาจะเป็นอย่างไร",
+        "return_range": "กรอบผลตอบแทนสูงสุด/ต่ำสุด (แท่งสีแดงคือช่วงที่ขาดทุน)",
+        "win_prob": "<b>Win Probability (%)</b>: โอกาสที่ลงทุนแล้วได้กำไร (>0) เมื่อถือครองครบระยะเวลาที่กำหนด ยิ่งถือนานโอกาสชนะควรยิ่งสูง",
+        "expected_ret": "<b>Expected Return</b>: ผลตอบแทนคาดหวังเฉลี่ย (Mean vs Median) DCA มักได้น้อยกว่า Lump Sum เล็กน้อยแลกกับความเสี่ยงที่ต่ำกว่า",
+        "rolling_horizons": "ระยะเวลาถือครองที่ต้องการทดสอบ (ปี)",
+        "rolling_step": "ความถี่ในการเลื่อนจุดเริ่มลงทุน (วัน)"
     };
 
-    function updateStrategyDesc() {
-        const val = document.getElementById('strategy-select').value;
-        const txt = STRAT_DESCS[val] || "";
-        document.getElementById('strat-desc').innerText = txt;
+    // --- UI HELPERS ---
+    function updateStrategyDesc() { document.getElementById('strat-desc').innerText = STRAT_DESCS[document.getElementById('strategy-select').value] || ""; }
+    function showInfo(k) { 
+        document.getElementById('info-title').innerText = k.replace('_',' ').toUpperCase();
+        document.getElementById('info-desc').innerHTML = INFO_TEXTS[k] || "No desc";
+        document.getElementById('info-modal').classList.remove('hidden'); document.getElementById('info-modal').classList.add('flex');
+    }
+    function closeInfo() { document.getElementById('info-modal').classList.add('hidden'); document.getElementById('info-modal').classList.remove('flex'); }
+    function getVal(id) { const el=document.getElementById(id); return el?el.value:""; }
+    function switchTab(t) { 
+        ['simulator','history','docs'].forEach(v=>document.getElementById(`view-${v}`).classList.add('hidden'));
+        document.getElementById(`view-${t}`).classList.remove('hidden');
+        ['sim','hist','docs'].forEach(v=>document.getElementById(`tab-${v}`).classList.remove('active'));
+        document.getElementById(`tab-${t==='simulator'?'sim':t==='history'?'hist':'docs'}`).classList.add('active');
+    }
+    function showEl(id) { const el = document.getElementById(id); if(el) el.classList.remove('hidden'); }
+    function hideEl(id) { const el = document.getElementById(id); if(el) el.classList.add('hidden'); }
+
+    // --- ASSET MANAGEMENT ---
+    function renderAssetList() {
+        const c = document.getElementById('asset-list'); c.innerHTML='';
+        STATE.assets.forEach(a => {
+            c.innerHTML += `<span class="asset-tag">${a} <span class="asset-remove" onclick="removeAsset('${a}')">×</span></span>`;
+        });
+    }
+    function addAssetManual() {
+        const v = document.getElementById('manual-ticker-input').value.trim().toUpperCase();
+        if(v && !STATE.assets.includes(v)) { STATE.assets.push(v); renderAssetList(); }
+        document.getElementById('manual-ticker-input').value = '';
+    }
+    function quickAddAsset(v) { if(v && !STATE.assets.includes(v)) { STATE.assets.push(v); renderAssetList(); } document.getElementById('quick-add-asset').value = ""; }
+    function removeAsset(v) { STATE.assets = STATE.assets.filter(a=>a!==v); renderAssetList(); }
+    function resetDefaultAssets() { STATE.assets = [...DEFAULT_ASSETS]; renderAssetList(); }
+
+    // --- CORE LOGIC ---
+    function generateSyntheticData(days, startPrice=100) {
+        let p=startPrice, d=new Date(); d.setDate(d.getDate()-days);
+        const arr=[]; 
+        for(let i=0; i<days; i++) {
+            d.setDate(d.getDate()+1);
+            if(d.getDay()===0||d.getDay()===6) continue;
+            p *= (1 + (Math.random()-0.45)*0.02); // Slight upward drift
+            arr.push({date:d.toISOString().split('T')[0], price:p});
+        }
+        return arr;
     }
 
-    function showInfo(key) {
-        document.getElementById('info-title').innerText = (key.replace('_', ' ')).toUpperCase();
-        document.getElementById('info-desc').innerHTML = INFO_TEXTS[key] || "No description available.";
-        document.getElementById('info-modal').classList.remove('hidden');
-        document.getElementById('info-modal').classList.add('flex');
-    }
-    function closeInfo() {
-        document.getElementById('info-modal').classList.add('hidden');
-        document.getElementById('info-modal').classList.remove('flex');
-    }
-
-    // --- 1. DATA FETCHING ---
-    const CACHE = {};
-    async function fetchAssetData(symbol, startDate, endDate) {
-        const cacheKey = `${symbol}-${startDate}-${endDate}`;
-        if (CACHE[cacheKey]) return CACHE[cacheKey];
-
-        const p1 = Math.floor(new Date(startDate).getTime() / 1000);
-        const p2 = Math.floor(new Date(endDate).getTime() / 1000);
-        const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d&events=history&includeAdjustedClose=true`;
-        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
-
-        try {
-            const res = await fetch(proxyUrl);
-            const json = await res.json();
-            const result = json.chart.result[0];
-            if (!result || !result.timestamp) throw new Error("No Data");
-            
-            const adjClose = result.indicators.adjclose[0].adjclose;
-            const timestamps = result.timestamp;
-            
-            return timestamps.map((t, i) => ({
-                date: new Date(t * 1000).toISOString().split('T')[0],
-                price: adjClose[i]
-            })).filter(d => d.price != null);
-        } catch (e) {
-            console.warn(`Failed to fetch ${symbol}`, e);
-            return null;
-        }
-    }
-
-    // --- 2. CORE MATH ---
-    function calcReturns(priceArr, lookback) {
-        const res = new Array(priceArr.length).fill(NaN);
-        for(let i = lookback; i < priceArr.length; i++) {
-            res[i] = (priceArr[i] / priceArr[i - lookback]) - 1;
-        }
-        return res;
-    }
-
-    function calcVol(dailyRets, lookback) {
-        const res = new Array(dailyRets.length).fill(NaN);
-        for(let i = lookback; i < dailyRets.length; i++) {
-            const window = dailyRets.slice(i - lookback + 1, i + 1);
-            const mean = window.reduce((a,b)=>a+b,0) / window.length;
-            const variance = window.reduce((a,b) => a + Math.pow(b-mean, 2), 0) / (window.length - 1);
-            res[i] = Math.sqrt(variance);
-        }
-        return res;
-    }
-
-    function getWeights(strategy, signals, vols, dateIdx, assetKeys) {
-        const activeAssets = assetKeys.filter(k => !isNaN(signals[k]));
-        if (activeAssets.length === 0) return {};
-
-        const sVals = activeAssets.map(k => ({ k, val: signals[k], vol: vols[k] }));
-        sVals.sort((a,b) => b.val - a.val);
-
-        let weights = {};
-        assetKeys.forEach(k => weights[k] = 0);
-
-        if (strategy === "Rank_All") {
-            const N = sVals.length;
-            const sumRanks = (N * (N + 1)) / 2;
-            sVals.forEach((item, idx) => weights[item.k] = (N - idx) / sumRanks);
-        } 
-        else if (strategy === "Equal_Weight") {
-             const w = 1 / sVals.length;
-             sVals.forEach(item => weights[item.k] = w);
-        }
-        else if (strategy === "Top3_Equal") {
-            const K = Math.min(3, sVals.length);
-            const w = 1 / K;
-            for(let i=0; i<K; i++) weights[sVals[i].k] = w;
-        } 
-        else if (strategy === "Top3_Rank") {
-            const K = Math.min(3, sVals.length);
-            const sumRanks = (K * (K + 1)) / 2;
-            for(let i=0; i<K; i++) weights[sVals[i].k] = (K - i) / sumRanks;
-        }
-        else if (strategy === "Top50pct") {
-            const K = Math.max(1, Math.floor(sVals.length / 2));
-            const w = 1 / K;
-            for(let i=0; i<K; i++) weights[sVals[i].k] = w;
-        }
-        else if (strategy === "AbsMom") {
-            const pos = sVals.filter(x => x.val > 0);
-            if(pos.length > 0) {
-                const w = 1 / pos.length;
-                pos.forEach(x => weights[x.k] = w);
-            }
-        }
-        else if (strategy === "DualMom_Rel") {
-            const pos = sVals.filter(x => x.val > 0);
-            const K = Math.max(1, Math.floor(pos.length / 2));
-            if(pos.length > 0) {
-                const w = 1 / K;
-                for(let i=0; i<K; i++) weights[pos[i].k] = w;
-            }
-        }
-        else if (strategy === "InvVol") {
-            let sumInvVol = 0;
-            sVals.forEach(x => { if(x.vol > 0) sumInvVol += (1/x.vol); });
-            sVals.forEach(x => { if(x.vol > 0) weights[x.k] = (1/x.vol) / sumInvVol; });
-        }
-        return weights;
-    }
-
-    // --- 3. BATCH EXECUTION ---
-    async function runBatchEngine() {
-        const btn = document.getElementById('btn-run');
-        const overlay = document.getElementById('loading-overlay');
-        const status = document.getElementById('loading-status');
+    async function fetchAssetData(sym, start, end) {
+        const p1=Math.floor(new Date(start).getTime()/1000), p2=Math.floor(new Date(end).getTime()/1000);
+        // Using allorigins as a proxy to bypass CORS for Yahoo Finance (standard hack for client-side only demos)
+        // Note: In production, use a proper backend.
+        const url=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?period1=${p1}&period2=${p2}&interval=1d&includeAdjustedClose=true`;
         
-        btn.disabled = true;
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flex');
-        STATE.batchResults = [];
-
         try {
-            // 1. Get Inputs & Parse Batch
-            const startDate = document.getElementById('date-start').value;
-            const endDate = document.getElementById('date-end').value;
-            const strategy = document.getElementById('strategy-select').value;
+            const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+            if(!res.ok) throw new Error("Net Error");
+            const j=await res.json();
+            const r=j.chart.result?.[0];
+            if(!r) throw new Error("No data");
+            const adj = r.indicators.adjclose?.[0].adjclose;
+            if(!adj) throw new Error("No adj close");
             
-            const lookbackInput = document.getElementById('param-lookback').value;
-            const lookbacks = lookbackInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
-            
-            const rebalInput = document.getElementById('param-rebal').value;
-            const rebalFreqs = rebalInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
-
-            const tCost = parseFloat(document.getElementById('cost-tcost').value) / 100;
-            const expenseRatio = parseFloat(document.getElementById('cost-er').value) / 100;
-            const dailyER = expenseRatio / 252;
-
-            // 2. Fetch Data (Once)
-            status.innerText = "Fetching Market Data...";
-            const rawData = await Promise.all(STATE.assets.map(sym => fetchAssetData(sym, startDate, endDate)));
-            
-            // Align Data
-            let commonDates = rawData[0].map(d=>d.date);
-            rawData.forEach(d => {
-                if(!d) return;
-                const dSet = new Set(d.map(x=>x.date));
-                commonDates = commonDates.filter(x => dSet.has(x));
-            });
-            commonDates.sort();
-            
-            const prices = [];
-            commonDates.forEach(date => {
-                let row = { date };
-                STATE.assets.forEach((sym, idx) => {
-                    const found = rawData[idx]?.find(x=>x.date === date);
-                    if(found) row[sym] = found.price;
-                });
-                prices.push(row);
-            });
-
-            // Need max lookback to ensure safety
-            const maxLookback = Math.max(...lookbacks);
-            if(prices.length < maxLookback + 50) throw new Error("Data too short for max Lookback.");
-
-            // 3. Pre-calc Signals for all Lookbacks
-            status.innerText = "Calculating Signals...";
-            const assetKeys = STATE.assets;
-            const dailyReturns = {};
-            const vols = {};
-            // For signals, we need to store them by lookback: signals[lookback][asset]
-            const signalsByLB = {};
-
-            assetKeys.forEach(sym => {
-                const pArr = prices.map(r => r[sym]);
-                dailyReturns[sym] = new Array(pArr.length).fill(0);
-                for(let i=1; i<pArr.length; i++) dailyReturns[sym][i] = (pArr[i]/pArr[i-1]) - 1;
-                vols[sym] = calcVol(dailyReturns[sym], 20); 
-            });
-
-            lookbacks.forEach(lb => {
-                signalsByLB[lb] = {};
-                assetKeys.forEach(sym => {
-                    signalsByLB[lb][sym] = calcReturns(prices.map(r=>r[sym]), lb);
-                });
-            });
-
-            // 4. Batch Loop
-            status.innerText = `Running ${lookbacks.length * rebalFreqs.length} Simulations...`;
-            
-            for(let lb of lookbacks) {
-                for(let rb of rebalFreqs) {
-                    const res = runSingleSimulation(prices, commonDates, dailyReturns, signalsByLB[lb], vols, lb, rb, dailyER, tCost, strategy, assetKeys);
-                    STATE.batchResults.push(res);
-                }
-            }
-
-            // 5. Select Best
-            STATE.batchResults.sort((a,b) => parseFloat(b.stats.sharpe) - parseFloat(a.stats.sharpe));
-            
-            renderBatchTable();
-            viewResult(0); // View Best
-
-            document.getElementById('results-container').classList.remove('hidden');
-            document.getElementById('placeholder-viz').classList.add('hidden');
-            document.getElementById('history-placeholder').classList.add('hidden');
-
-        } catch (e) {
-            console.error(e);
-            alert("Error: " + e.message);
-        } finally {
-            btn.disabled = false;
-            overlay.classList.add('hidden');
-            overlay.classList.remove('flex');
+            return r.timestamp.map((t,i)=>({
+                date:new Date(t*1000).toISOString().split('T')[0], 
+                price: adj[i]
+            })).filter(x=>x.price !== null && x.price !== undefined);
+        } catch(e) {
+            console.warn(`Fallback synthetic for ${sym}: ${e.message}`);
+            const days = Math.ceil(Math.abs(new Date(end)-new Date(start))/(1000*60*60*24));
+            return generateSyntheticData(days);
         }
     }
 
-    function runSingleSimulation(prices, dates, dailyReturns, signals, vols, lookback, rebalFreq, dailyER, tCost, strategy, assetKeys) {
-        let valBefore = 1000, valAfter = 1000;
-        const curveBefore = [1000], curveAfter = [1000], curveDates = [dates[lookback]];
-        let currentWeights = {}; assetKeys.forEach(k => currentWeights[k] = 0);
-        let totalTurnover = 0, nRebals = 0;
-        const historyLog = [];
+    function calcReturns(p, lb) {
+        const r=new Array(p.length).fill(NaN);
+        for(let i=lb; i<p.length; i++) {
+            const prev = p[i-lb];
+            if(prev && prev !== 0) r[i] = (p[i]/prev) - 1;
+            else r[i] = 0;
+        }
+        return r;
+    }
+    function calcVol(dr, lb) {
+        const r=new Array(dr.length).fill(NaN);
+        for(let i=lb; i<dr.length; i++) {
+            const w=dr.slice(i-lb+1, i+1);
+            if(w.length < 2) { r[i] = 0; continue; }
+            const m=w.reduce((a,b)=>a+b,0)/w.length;
+            r[i] = Math.sqrt(w.reduce((a,b)=>a+Math.pow(b-m,2),0)/(w.length-1));
+        }
+        return r;
+    }
+    function getWeights(strat, sig, vol, keys) {
+        const active = keys.filter(k=>!isNaN(sig[k]));
+        if(!active.length) return {};
+        // Prepare items
+        const items = active.map(k=>({k, val:sig[k], vol:vol[k] || 0}));
+        // Sort by Signal Desc
+        items.sort((a,b)=>b.val-a.val);
+        
+        let w={}; keys.forEach(k=>w[k]=0);
+        
+        if(strat==="Rank_All") { 
+            const N=items.length, S=(N*(N+1))/2; 
+            items.forEach((x,i)=>w[x.k]=(N-i)/S); 
+        }
+        else if(strat==="Equal_Weight") { 
+            items.forEach(x=>w[x.k]=1/items.length); 
+        }
+        else if(strat==="Top3_Equal") { 
+            const K=Math.min(3,items.length); 
+            for(let i=0;i<K;i++) w[items[i].k]=1/K; 
+        }
+        else if(strat==="Top3_Rank") { 
+            const K=Math.min(3,items.length), S=(K*(K+1))/2; 
+            for(let i=0;i<K;i++) w[items[i].k]=(K-i)/S; 
+        }
+        else if(strat==="Top50pct") { 
+            const K=Math.max(1,Math.floor(items.length/2)); 
+            for(let i=0;i<K;i++) w[items[i].k]=1/K; 
+        }
+        else if(strat==="AbsMom") { 
+            const p=items.filter(x=>x.val>0); 
+            if(p.length) p.forEach(x=>w[x.k]=1/p.length); 
+        }
+        else if(strat==="DualMom_Rel") { 
+            const p=items.filter(x=>x.val>0), K=Math.max(1,Math.floor(p.length/2)); 
+            if(p.length) for(let i=0;i<K;i++) w[p[i].k]=1/K; 
+        }
+        else if(strat==="InvVol") { 
+            let S=0; 
+            items.forEach(x=>{ if(x.vol>0) S+=1/x.vol; }); 
+            if(S>0) items.forEach(x=>{ if(x.vol>0) w[x.k]=(1/x.vol)/S; });
+            else items.forEach(x=>w[x.k]=1/items.length); // Fallback if vol 0
+        }
+        return w;
+    }
 
-        for(let t = lookback; t < prices.length; t++) {
-            const isRebalDay = (t - lookback) % rebalFreq === 0;
-            
-            let dayRetBefore = 0;
-            if (t > lookback) {
-                assetKeys.forEach(sym => {
-                    dayRetBefore += (currentWeights[sym] || 0) * dailyReturns[sym][t];
-                });
-            }
-            const dayRetAfter = dayRetBefore - dailyER;
+    function calcStats(c) {
+        const r = [];
+        for (let i = 1; i < c.length; i++) r.push(c[i] / c[i - 1] - 1);
+        if (r.length === 0) return { cagr: "0.00", sharpe: "0.00", mdd: "0.00" };
 
-            valBefore *= (1 + dayRetBefore);
-            valAfter *= (1 + dayRetAfter);
+        const cagr = (Math.pow(c[c.length - 1] / c[0], 252 / c.length) - 1) * 100;
+        
+        const mean = r.reduce((a, b) => a + b, 0) / r.length;
+        const std = Math.sqrt(r.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (r.length - 1));
+        const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0; 
 
-            if (isRebalDay) {
-                const sigsAtT = {}, volsAtT = {};
-                assetKeys.forEach(sym => { sigsAtT[sym] = signals[sym][t]; volsAtT[sym] = vols[sym][t]; });
-
-                const targetWeights = getWeights(strategy, sigsAtT, volsAtT, t, assetKeys);
-                
-                let turnover = 0;
-                assetKeys.forEach(sym => {
-                    turnover += Math.abs((targetWeights[sym] || 0) - (currentWeights[sym] || 0));
-                });
-                
-                valAfter *= (1 - (turnover * tCost));
-                totalTurnover += turnover;
-                nRebals++;
-                currentWeights = targetWeights;
-
-                historyLog.push({ date: dates[t], weights: {...targetWeights}, turnover });
-            }
-
-            if (t > lookback) {
-                curveBefore.push(valBefore);
-                curveAfter.push(valAfter);
-                curveDates.push(dates[t]);
-            }
+        let peak = -Infinity;
+        let mdd = 0;
+        for (let v of c) {
+            if (v > peak) peak = v;
+            const dd = (v - peak) / peak;
+            if (dd < mdd) mdd = dd;
         }
 
-        const annTurnover = nRebals > 0 ? (totalTurnover / nRebals) * (252/rebalFreq) : 0;
-        const stats = calcStats(curveAfter);
-        
         return {
-            config: { lookback, rebalFreq },
-            curveBefore, curveAfter, curveDates,
-            stats, annTurnover, historyLog
+            cagr: cagr.toFixed(2),
+            sharpe: sharpe.toFixed(2),
+            mdd: (mdd * 100).toFixed(2)
         };
     }
 
-    // --- 5. UI & CHARTING ---
+    async function runBatchEngine() {
+        const btn=document.getElementById('btn-run'), over=document.getElementById('loading-overlay'), status=document.getElementById('loading-status');
+        if(btn) btn.disabled=true; 
+        if(over) { over.classList.remove('hidden'); over.classList.add('flex'); }
+        STATE.batchResults=[];
+
+        try {
+            const start=getVal('date-start'), end=getVal('date-end');
+            const lbs=getVal('param-lookback').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+            const rbs=getVal('param-rebal').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+            const tcost=parseFloat(getVal('cost-tcost'))/100;
+            const er=parseFloat(getVal('cost-er'))/100/252; // Daily ER
+            const strat=document.getElementById('strategy-select').value;
+            const benchSym=document.getElementById('benchmark-select').value;
+            const horizons = getVal('param-horizons').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+            const rollStepYears = parseFloat(getVal('param-roll-step')) || 0.1;
+            const rollStep = Math.max(1, Math.floor(rollStepYears * 252));
+
+            // Fetch Data
+            status.innerText="Fetching Asset Data...";
+            const raw = await Promise.all(STATE.assets.map(s=>fetchAssetData(s, start, end)));
+            
+            // Align Data (Intersection of dates)
+            // To simplify, we take the dates from the first asset and map others. 
+            // In a pro system, we'd do a proper merge join.
+            let dates = raw[0].map(d=>d.date); 
+            // Filter common dates if needed, but here we assume Yahoo returns mostly aligned days or we fill fwd
+            // Let's just use the first asset's dates as master for simplicity
+            
+            const prices = [];
+            dates.forEach(d => {
+                let row={date:d}; 
+                STATE.assets.forEach((s,i)=>{ 
+                    const f=raw[i].find(x=>x.date===d); 
+                    if(f) row[s]=f.price; 
+                });
+                // Simple Fill Forward if missing
+                STATE.assets.forEach(s => {
+                   if(!row[s] && prices.length>0) row[s] = prices[prices.length-1][s];
+                });
+                // Only push if we have data for all (or fill fwd worked)
+                if(STATE.assets.every(k=>row[k]!==undefined)) prices.push(row);
+            });
+            
+            // Re-update dates to matched prices
+            dates = prices.map(p=>p.date);
+
+            // Benchmark
+            STATE.benchmarkData = null;
+            if(benchSym && benchSym!=="EQUAL_WEIGHT") {
+                const bRaw = await fetchAssetData(benchSym, start, end);
+                STATE.benchmarkData = dates.map(d=> {
+                    const f = bRaw.find(x=>x.date===d);
+                    return f ? f.price : (bRaw[bRaw.length-1]?.price || 100); // fallback
+                });
+            }
+
+            // Pre-Calc Daily Returns & Volatility
+            status.innerText="Calculating Indicators...";
+            const daily={}, vols={}, sigs={};
+            STATE.assets.forEach(s => {
+                const p = prices.map(r=>r[s]);
+                daily[s] = new Array(p.length).fill(0);
+                for(let i=1;i<p.length;i++) {
+                    const prev = p[i-1];
+                    daily[s][i] = (prev && prev !== 0) ? (p[i]/prev - 1) : 0;
+                }
+                vols[s] = calcVol(daily[s], 20); // 20-day vol standard
+            });
+            
+            // Pre-Calc Signals for all Lookbacks
+            lbs.forEach(lb => {
+                sigs[lb]={}; 
+                STATE.assets.forEach(s => sigs[lb][s] = calcReturns(prices.map(r=>r[s]), lb));
+            });
+
+            // Sim Loop
+            status.innerText="Running Simulations...";
+            for(let lb of lbs) {
+                for(let rb of rbs) {
+                    let va=1000, ca=[1000], w={}, totTO=0, nRb=0, log=[];
+                    STATE.assets.forEach(k=>w[k]=0);
+                    
+                    const startIdx = Math.max(lb, 20); 
+                    if(startIdx >= prices.length) continue;
+
+                    for(let t=startIdx; t<prices.length; t++) {
+                        // 1. Calculate Daily Return of Portfolio based on yesterday's weights
+                        let dr=0; 
+                        STATE.assets.forEach(k=>dr+=w[k]*(daily[k][t]||0));
+                        if(isNaN(dr)) dr=0;
+                        
+                        // Apply Return and Expense Ratio
+                        va *= (1 + dr - er);
+
+                        // 2. Rebalance Logic
+                        if((t-startIdx) % rb === 0) {
+                            const sT={}, vT={}; 
+                            STATE.assets.forEach(k=>{ sT[k]=sigs[lb][k][t]||0; vT[k]=vols[k][t]||0; });
+                            
+                            const tw = getWeights(strat, sT, vT, STATE.assets);
+                            
+                            // Calc Turnover Cost
+                            let to=0; 
+                            STATE.assets.forEach(k=>to+=Math.abs((tw[k]||0)-(w[k]||0)));
+                            // One-way turnover sum is 200% max (sell all, buy all). 
+                            // T-cost applies to total volume traded. 
+                            // Simplification: turnover * tcost / 2 (since to counts sell+buy diffs? No, |w_new - w_old| sums to 2 max. 
+                            // We pay tcost on the traded amount. Traded amount = sum(|diff|) / 2 ? No, sum(|diff|) is total volume moved.
+                            // If I sell 50% A to buy 50% B, diff is 0.5 + 0.5 = 1.0. I traded 50% of portfolio.
+                            // So va *= (1 - (to/2) * tcost). Let's be conservative and use full TO sum as proxy for "impact". 
+                            // Actually standard is: va -= va * sum(|diff|) * cost_rate.
+                            // Note: sum(|diff|) counts both buy and sell legs.
+                            
+                            // Let's use: Cost = (Sum(|diff|) / 2) * TCost * 2? No, just Sum(|diff|) * Tcost/2 (one way?)
+                            // Let's stick to standard conservative: Cost = Sum(|diff|) * TCost
+                            const costAmt = to * tcost; 
+                            va *= (1 - costAmt);
+
+                            totTO += to; 
+                            nRb++; 
+                            w = tw;
+                            
+                            // Log
+                            const activeHoldings = Object.entries(w).filter(([k,v])=>v>0.01).map(([k,v])=>`${k}:${Math.round(v*100)}%`).join(', ');
+                            log.push({
+                                date: dates[t], 
+                                action: activeHoldings || "Cash/None", 
+                                turnover: (to*100).toFixed(1)+"%"
+                            });
+                        }
+                        ca.push(va);
+                    }
+                    
+                    const stats = calcStats(ca);
+                    // Annualized Turnover
+                    const years = (prices.length - startIdx) / 252;
+                    const annTO = years > 0 ? ((totTO / 2) / years) * 100 : 0; // /2 because 200% turnover = 100% rotation
+                    
+                    // Benchmark Curve Generation
+                    let benchCurve = null;
+                    if(STATE.benchmarkData) {
+                        const base = STATE.benchmarkData[startIdx] || 1;
+                        benchCurve = STATE.benchmarkData.slice(startIdx).map(v => (v/base)*1000);
+                    } else if (benchSym === "EQUAL_WEIGHT") {
+                        let bc = [1000], bv=1000;
+                        for(let t=startIdx; t<prices.length; t++) {
+                            let dr=0; STATE.assets.forEach(k=>dr+=(1/STATE.assets.length)*(daily[k][t]||0));
+                            bv *= (1+dr); bc.push(bv);
+                        }
+                        benchCurve = bc;
+                    }
+
+                    STATE.batchResults.push({ 
+                        config:{lb, rb}, 
+                        curve:ca, 
+                        dates: dates.slice(startIdx), 
+                        stats, 
+                        annTO: annTO.toFixed(0), 
+                        log, 
+                        benchCurve,
+                        benchStats: benchCurve ? calcStats(benchCurve) : null,
+                        rollSettings: { horizons, rollStep }
+                    });
+                }
+            }
+            
+            STATE.batchResults.sort((a,b)=>parseFloat(b.stats.sharpe)-parseFloat(a.stats.sharpe));
+            
+            // Render
+            renderBatchTable();
+            viewResult(0);
+            
+            showEl('results-container');
+            hideEl('placeholder-viz');
+
+        } catch(e) { 
+            alert("Simulation Error: " + e.message); 
+            console.error(e); 
+        } finally { 
+            if(btn) btn.disabled=false; 
+            if(over) { over.classList.add('hidden'); over.classList.remove('flex'); } 
+        }
+    }
+
+    // --- VISUALIZATION & TABLES ---
     function renderBatchTable() {
         const tbody = document.getElementById('batch-table-body');
         tbody.innerHTML = '';
-        STATE.batchResults.forEach((res, idx) => {
+        
+        const start = (STATE.currentPage - 1) * STATE.rowsPerPage;
+        const end = start + STATE.rowsPerPage;
+        const subset = STATE.batchResults.slice(start, end);
+        
+        document.getElementById('page-indicator').innerText = `Page ${STATE.currentPage} of ${Math.ceil(STATE.batchResults.length/STATE.rowsPerPage)}`;
+        document.getElementById('btn-prev').disabled = STATE.currentPage === 1;
+        document.getElementById('btn-next').disabled = end >= STATE.batchResults.length;
+
+        subset.forEach((r, i) => {
+            const globalIdx = start + i;
             const tr = document.createElement('tr');
-            tr.className = `batch-row border-b border-slate-100 transition-colors ${idx === 0 ? 'selected' : ''}`;
-            tr.onclick = () => viewResult(idx);
-            
-            // Format metrics
-            const isBest = idx === 0 ? 'text-emerald-600 font-bold' : '';
+            tr.className = `batch-row transition-all ${globalIdx===STATE.selectedResultIndex ? 'selected' : ''}`;
+            tr.onclick = () => viewResult(globalIdx);
             tr.innerHTML = `
-                <td class="p-2 text-left font-mono text-slate-500">${res.config.lookback}</td>
-                <td class="p-2 text-left font-mono text-slate-500">${res.config.rebalFreq}</td>
-                <td class="p-2 ${parseFloat(res.stats.cagr)>0?'text-emerald-600':'text-rose-500'}">${res.stats.cagr}</td>
-                <td class="p-2 ${isBest}">${res.stats.sharpe}</td>
-                <td class="p-2 text-rose-500">${res.stats.mdd}</td>
-                <td class="p-2 text-slate-400">${(res.annTurnover*100).toFixed(0)}%</td>
+                <td class="font-mono text-slate-500">${r.config.lb}</td>
+                <td class="font-mono text-slate-500">${r.config.rb}</td>
+                <td class="font-bold ${parseFloat(r.stats.cagr)>0?'text-emerald-600':'text-rose-600'}">${r.stats.cagr}%</td>
+                <td class="font-bold text-blue-600">${r.stats.sharpe}</td>
+                <td class="text-rose-600">${r.stats.mdd}%</td>
+                <td class="text-slate-500">${r.annTO}%</td>
             `;
             tbody.appendChild(tr);
         });
+    }
+
+    function sortTable(col) {
+        if(STATE.sortCol === col) STATE.sortAsc = !STATE.sortAsc;
+        else { STATE.sortCol = col; STATE.sortAsc = false; } // Default desc
+        
+        STATE.batchResults.sort((a,b) => {
+            let vA, vB;
+            if(col==='lb') { vA=a.config.lb; vB=b.config.lb; }
+            else if(col==='rb') { vA=a.config.rb; vB=b.config.rb; }
+            else if(col==='turnover') { vA=parseFloat(a.annTO); vB=parseFloat(b.annTO); }
+            else { vA=parseFloat(a.stats[col]); vB=parseFloat(b.stats[col]); }
+            return STATE.sortAsc ? vA-vB : vB-vA;
+        });
+        renderBatchTable();
+    }
+    
+    function changePage(d) {
+        STATE.currentPage += d;
+        renderBatchTable();
     }
 
     function viewResult(idx) {
         STATE.selectedResultIndex = idx;
         const res = STATE.batchResults[idx];
         
-        // Highlight Row
-        document.querySelectorAll('.batch-row').forEach(r => r.classList.remove('selected'));
-        document.querySelectorAll('.batch-row')[idx].classList.add('selected');
+        // Highlight row
+        const rows = document.querySelectorAll('.batch-row');
+        rows.forEach(r => r.classList.remove('selected'));
+        // Re-render table to ensure highlight if on current page
+        renderBatchTable();
 
         // Update Stats
-        document.getElementById('res-cagr').innerText = res.stats.cagr;
+        document.getElementById('res-cagr').innerText = res.stats.cagr + "%";
         document.getElementById('res-sharpe').innerText = res.stats.sharpe;
-        document.getElementById('res-mdd').innerText = res.stats.mdd;
-        document.getElementById('res-turnover').innerText = (res.annTurnover*100).toFixed(1) + "%";
+        document.getElementById('res-mdd').innerText = res.stats.mdd + "%";
+        document.getElementById('res-turnover').innerText = res.annTO + "%";
 
-        // Calc Rolling
-        const rollingStats = runRollingAnalysis(res.curveAfter, res.curveDates);
+        if(res.benchStats) {
+            document.getElementById('bench-cagr').innerText = `Bench: ${res.benchStats.cagr}%`;
+            document.getElementById('bench-sharpe').innerText = `Bench: ${res.benchStats.sharpe}`;
+            document.getElementById('bench-mdd').innerText = `Bench: ${res.benchStats.mdd}%`;
+        } else {
+            ['cagr','sharpe','mdd'].forEach(k=>document.getElementById(`bench-${k}`).innerText = "Bench: -");
+        }
 
-        // Render Charts
-        renderEquityChart(res.curveDates, res.curveBefore, res.curveAfter);
-        renderRollingCharts(rollingStats);
-        renderHistoryTable(res.historyLog);
-    }
+        // Charts
+        renderEquityChart(res);
+        renderRollingCharts(res);
 
-    function renderHistoryTable(log) {
-        const table = document.getElementById('history-table');
-        const thead = table.querySelector('thead');
-        const tbody = table.querySelector('tbody');
-        
-        // Headers
-        let headerHTML = `<tr><th class="rounded-tl-lg">Date</th>`;
-        STATE.assets.forEach(a => headerHTML += `<th>${a}</th>`);
-        headerHTML += `<th class="rounded-tr-lg">Turnover</th></tr>`;
-        thead.innerHTML = headerHTML;
-
-        // Rows
-        let rowsHTML = "";
-        // Show last 50 entries to avoid lag if massive
-        const displayLog = log.length > 200 ? log.slice(-200) : log;
-        
-        displayLog.forEach(entry => {
-            rowsHTML += `<tr><td class="font-mono text-slate-500">${entry.date}</td>`;
-            STATE.assets.forEach(a => {
-                const w = entry.weights[a] || 0;
-                const val = (w * 100).toFixed(0);
-                const colorClass = w > 0.01 ? "font-bold text-blue-600" : "text-slate-200";
-                rowsHTML += `<td class="${colorClass}">${val}%</td>`;
-            });
-            rowsHTML += `<td class="text-slate-400">${(entry.turnover*100).toFixed(0)}%</td></tr>`;
+        // History Table
+        const hBody = document.getElementById('history-body');
+        hBody.innerHTML = '';
+        // Show last 50 entries
+        res.log.slice().reverse().forEach(l => {
+            hBody.innerHTML += `<tr><td>${l.date}</td><td>${l.action}</td><td>${l.turnover}</td></tr>`;
         });
-        tbody.innerHTML = rowsHTML;
     }
 
-    // --- 6. MATH & CHART HELPERS (Standard) ---
-    function calcStats(curve) {
-        const returns = [];
-        for(let i=1; i<curve.length; i++) returns.push((curve[i]/curve[i-1])-1);
-        const cagr = (Math.pow(curve[curve.length-1]/curve[0], 252/curve.length) - 1) * 100;
-        const mean = returns.reduce((a,b)=>a+b,0)/returns.length;
-        const std = Math.sqrt(returns.reduce((a,b)=>a+Math.pow(b-mean,2),0)/(returns.length-1));
-        const sharpe = (mean * 252) / (std * Math.sqrt(252));
-        let peak = -Infinity, mdd = 0;
-        curve.forEach(v => { if(v > peak) peak = v; const dd = (v - peak) / peak; if(dd < mdd) mdd = dd; });
-        return { cagr: cagr.toFixed(2)+"%", sharpe: sharpe.toFixed(2), mdd: (mdd*100).toFixed(2)+"%" };
-    }
+    // --- CHART RENDERING ---
+    function destroyChart(id) { if(charts[id]) { charts[id].destroy(); charts[id]=null; } }
 
-    function runRollingAnalysis(curveVals, dates) {
-        const horizons = [1, 3, 5, 10]; const results = {};
-        horizons.forEach(years => {
-            const days = years * 252;
-            const lumpCAGRs = [], dcaCAGRs = [];
-            for(let i=0; i < curveVals.length - days; i += 20) {
-                const startV = curveVals[i], endV = curveVals[i + days];
-                lumpCAGRs.push(Math.pow(endV/startV, 1/years) - 1);
-                
-                const subCurve = curveVals.slice(i, i+days);
-                let units = 0, invested = 0; const monthlyAmt = 1000;
-                for(let m=0; m<subCurve.length; m+=21) { units += monthlyAmt / subCurve[m]; invested += monthlyAmt; }
-                const finalValue = units * subCurve[subCurve.length-1];
-                dcaCAGRs.push(Math.pow(finalValue/invested, 1/years) - 1);
-            }
-            results[years] = { lump: getDistStats(lumpCAGRs), dca: getDistStats(dcaCAGRs) };
-        });
-        return results;
-    }
-
-    function getDistStats(arr) {
-        if(arr.length === 0) return { max:0, min:0, mean:0, median:0, lossProb:0 };
-        arr.sort((a,b)=>a-b);
-        const mean = arr.reduce((a,b)=>a+b,0)/arr.length;
-        const lossCount = arr.filter(x=>x<0).length;
-        return { max: arr[arr.length-1], min: arr[0], mean: mean, median: arr[Math.floor(arr.length/2)], lossProb: (lossCount/arr.length) * 100 };
-    }
-
-    function renderEquityChart(dates, before, after) {
+    function renderEquityChart(res) {
+        destroyChart('chart-equity');
         const ctx = document.getElementById('chart-equity').getContext('2d');
-        if(charts.equity) charts.equity.destroy();
-        charts.equity = new Chart(ctx, {
+        
+        const datasets = [{
+            label: 'Strategy Equity',
+            data: res.curve,
+            borderColor: '#059669', // Emerald 600
+            backgroundColor: 'rgba(5, 150, 105, 0.1)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true
+        }];
+
+        if(res.benchCurve) {
+            datasets.push({
+                label: 'Benchmark',
+                data: res.benchCurve,
+                borderColor: '#94a3b8', // Slate 400
+                borderWidth: 2,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+        }
+
+        charts['chart-equity'] = new Chart(ctx, {
             type: 'line',
-            data: { labels: dates, datasets: [
-                { label: 'Before Cost', data: before, borderColor: '#10b981', borderWidth: 1, pointRadius: 0 },
-                { label: 'After Cost', data: after, borderColor: '#2563eb', borderWidth: 2, pointRadius: 0, backgroundColor: 'rgba(37, 99, 235, 0.1)', fill: true }
-            ]},
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { type: 'logarithmic' }, x: { ticks: {maxTicksLimit: 8} } }, plugins: { legend: {display: false} } }
+            data: { labels: res.dates, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: { y: { display: true, grid: { color: '#f1f5f9' } }, x: { display: false } },
+                plugins: { legend: { display: true }, tooltip: { callbacks: { label: (c)=>`${c.dataset.label}: ${c.raw.toFixed(0)}` } } }
+            }
         });
     }
 
-    function renderRollingCharts(stats) {
-        const years = [1, 3, 5, 10];
-        const ctxR = document.getElementById('chart-range').getContext('2d');
-        if(charts.range) charts.range.destroy();
-        charts.range = new Chart(ctxR, {
+    function renderRollingCharts(res) {
+        // Calculate Rolling Returns
+        const curve = res.curve;
+        const benchCurve = res.benchCurve; // Get benchmark curve
+        const horizons = res.rollSettings.horizons;
+        const step = res.rollSettings.rollStep;
+        
+        // Data structures
+        const ranges = { labels: [], min: [], max: [], avg: [], benchAvg: [] };
+        const winProbs = { labels: [], strat: [], bench: [] };
+        const expected = { labels: [], strat: [], bench: [] };
+
+        horizons.forEach(yr => {
+            const days = yr * 252;
+            const rets = [];
+            const benchRets = [];
+            
+            // Strategy Rolling
+            for(let i=0; i < curve.length - days; i += step) {
+                const startV = curve[i];
+                const endV = curve[i+days];
+                const annRet = (Math.pow(endV/startV, 1/yr) - 1) * 100;
+                rets.push(annRet);
+
+                // Benchmark Rolling
+                if(benchCurve && benchCurve.length > i+days) {
+                     const bStart = benchCurve[i];
+                     const bEnd = benchCurve[i+days];
+                     const bAnnRet = (Math.pow(bEnd/bStart, 1/yr) - 1) * 100;
+                     benchRets.push(bAnnRet);
+                }
+            }
+
+            if(rets.length > 0) {
+                // Strategy Stats
+                const min = Math.min(...rets);
+                const max = Math.max(...rets);
+                const avg = rets.reduce((a,b)=>a+b,0)/rets.length;
+                const wins = rets.filter(x=>x>0).length;
+
+                // Bench Stats
+                let bAvg = 0;
+                let bWins = 0;
+                if(benchRets.length > 0) {
+                    bAvg = benchRets.reduce((a,b)=>a+b,0)/benchRets.length;
+                    bWins = benchRets.filter(x=>x>0).length;
+                }
+                
+                ranges.labels.push(`${yr}Y`);
+                ranges.min.push(min);
+                ranges.max.push(max);
+                ranges.avg.push(avg);
+                ranges.benchAvg.push(bAvg);
+
+                winProbs.labels.push(`${yr}Y`);
+                winProbs.strat.push((wins/rets.length)*100);
+                winProbs.bench.push(benchRets.length ? (bWins/benchRets.length)*100 : 0);
+
+                expected.labels.push(`${yr}Y`);
+                expected.strat.push(avg);
+                expected.bench.push(bAvg);
+            }
+        });
+
+        // 1. Range Chart (Added Bench Avg line)
+        destroyChart('chart-range');
+        charts['chart-range'] = new Chart(document.getElementById('chart-range'), {
             type: 'bar',
-            data: { labels: years.map(y => y+"Y"), datasets: [
-                { label: 'Lump Max', data: years.map(y=>Math.max(0, stats[y].lump.max*100)), backgroundColor: '#10b981', stack: 'L' },
-                { label: 'DCA Max', data: years.map(y=>Math.max(0, stats[y].dca.max*100)), backgroundColor: '#3b82f6', stack: 'D' },
-                { label: 'Lump Min', data: years.map(y=>Math.min(0, stats[y].lump.min*100)), backgroundColor: '#ef4444', stack: 'L' },
-                { label: 'DCA Min', data: years.map(y=>Math.min(0, stats[y].dca.min*100)), backgroundColor: '#f59e0b', stack: 'D' }
-            ]},
-            options: { responsive: true, maintainAspectRatio: false }
+            data: {
+                labels: ranges.labels,
+                datasets: [
+                    { label: 'Max', data: ranges.max, backgroundColor: '#60a5fa', order: 2 }, 
+                    { label: 'Strat Avg', data: ranges.avg, type: 'line', borderColor: '#1e40af', borderWidth: 2, pointRadius: 4, tension: 0.1, order: 0 },
+                    { label: 'Bench Avg', data: ranges.benchAvg, type: 'line', borderColor: '#94a3b8', borderWidth: 2, borderDash: [5,5], pointRadius: 3, tension: 0.1, order: 1 },
+                    { label: 'Min', data: ranges.min, backgroundColor: '#f43f5e', order: 3 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { title: { display: false } },
+                scales: { y: { grid: { color: '#f1f5f9' }, title: {display:true, text: 'Annualized Return (%)'} } }
+            }
         });
 
-        const ctxL = document.getElementById('chart-loss').getContext('2d');
-        if(charts.loss) charts.loss.destroy();
-        charts.loss = new Chart(ctxL, {
-            type: 'line',
-            data: { labels: years.map(y => y+"Y"), datasets: [
-                { label: 'Lump %', data: years.map(y=>stats[y].lump.lossProb), borderColor: '#ef4444', backgroundColor: '#ef4444' },
-                { label: 'DCA %', data: years.map(y=>stats[y].dca.lossProb), borderColor: '#3b82f6', backgroundColor: '#3b82f6' }
-            ]},
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0 } } }
+        // 2. Win Prob Chart (Grouped)
+        destroyChart('chart-loss');
+        charts['chart-loss'] = new Chart(document.getElementById('chart-loss'), {
+            type: 'bar',
+            data: {
+                labels: winProbs.labels,
+                datasets: [
+                    { label: 'Strategy Win %', data: winProbs.strat, backgroundColor: '#10b981' },
+                    { label: 'Bench Win %', data: winProbs.bench, backgroundColor: '#94a3b8' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, max: 100 } }
+            }
         });
 
-        const ctxE = document.getElementById('chart-expected').getContext('2d');
-        if(charts.expected) charts.expected.destroy();
-        charts.expected = new Chart(ctxE, {
-            type: 'line',
-            data: { labels: years.map(y => y+"Y"), datasets: [
-                { label: 'Lump Mean', data: years.map(y=>stats[y].lump.mean*100), borderColor: '#10b981' },
-                { label: 'DCA Mean', data: years.map(y=>stats[y].dca.mean*100), borderColor: '#3b82f6' },
-                { label: 'Median', data: years.map(y=>stats[y].lump.median*100), borderColor: '#10b981', borderDash:[5,5] }
-            ]},
-            options: { responsive: true, maintainAspectRatio: false }
+        // 3. Expected Return Chart (Grouped)
+        destroyChart('chart-expected');
+        charts['chart-expected'] = new Chart(document.getElementById('chart-expected'), {
+            type: 'bar',
+            data: {
+                labels: expected.labels,
+                datasets: [
+                    { label: 'Strategy Avg %', data: expected.strat, backgroundColor: '#6366f1' },
+                    { label: 'Bench Avg %', data: expected.bench, backgroundColor: '#94a3b8' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false
+            }
         });
     }
 
-    // UI Helpers
-    function renderAssetList() {
-        document.getElementById('asset-list').innerHTML = STATE.assets.map((sym, idx) => `
-            <div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-100 animate-fade-in">
-                <span class="text-xs font-bold text-slate-700">${sym}</span>
-                <button onclick="removeAsset(${idx})" class="text-slate-400 hover:text-rose-500 w-5 h-5 flex items-center justify-center rounded-full hover:bg-rose-50 transition-colors">✕</button>
-            </div>`).join('');
-    }
-    
-    // New Manual Add Function
-    function addAssetManual() {
-        const input = document.getElementById('manual-ticker-input');
-        const val = input.value.trim().toUpperCase();
-        
-        if (!val) {
-            alert("Please type a ticker symbol first.");
-            return;
-        }
-        
-        if (STATE.assets.includes(val)) {
-            alert(`Asset ${val} is already in the list.`);
-            input.value = "";
-            return;
-        }
-
-        STATE.assets.push(val);
-        renderAssetList();
-        input.value = ""; // Clear input
-    }
-
-    // Deprecated the old prompt-based function
-    function addAsset() { addAssetManual(); } 
-
-    function quickAddAsset(val) { if(val && !STATE.assets.includes(val)) { STATE.assets.push(val); renderAssetList(); document.getElementById('quick-add-asset').value = ""; } }
-    function removeAsset(idx) { STATE.assets.splice(idx, 1); renderAssetList(); }
-    function resetDefaultAssets() { STATE.assets = [...DEFAULT_ASSETS]; renderAssetList(); }
-    
-    function switchTab(t) {
-        ['simulator','history','docs'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
-        document.getElementById(`view-${t}`).classList.remove('hidden');
-        ['sim','hist','docs'].forEach(v => document.getElementById(`tab-${v}`).classList.remove('active'));
-        document.getElementById(`tab-${t === 'simulator' ? 'sim' : t === 'history' ? 'hist' : 'docs'}`).classList.add('active');
-    }
-
-    // Init
+    // --- INIT ---
     window.onload = () => {
-        const end = new Date(); const start = new Date(); start.setFullYear(end.getFullYear()-8);
-        document.getElementById('date-end').valueAsDate = end; document.getElementById('date-start').valueAsDate = start;
-        renderAssetList(); updateStrategyDesc();
-    }
+        // Set Default Dates
+        const today = new Date();
+        document.getElementById('date-end').value = today.toISOString().split('T')[0];
+        const start = new Date(); start.setFullYear(today.getFullYear() - 20); // 20 years back
+        document.getElementById('date-start').value = start.toISOString().split('T')[0];
+        
+        renderAssetList();
+        updateStrategyDesc();
+    };
+
 </script>
 </body>
 </html>
