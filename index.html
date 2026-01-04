@@ -89,11 +89,15 @@
         /* Method Docs */
         .doc-section { margin-bottom: 3rem; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2rem; }
         .doc-title { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-bottom: 1rem; border-left: 4px solid #3b82f6; padding-left: 12px; }
+        .doc-subtitle { font-size: 1rem; font-weight: 600; color: #334155; margin-bottom: 0.5rem; margin-top: 1.5rem; display: flex; align-items: center; gap: 8px;}
         .doc-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 1.25rem; border-radius: 0.5rem; margin-bottom: 1rem; }
         .stat-val-bench { font-size: 0.75rem; color: #64748b; margin-top: 2px; font-weight: 500; }
         .tag { display: inline-block; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; border-radius: 999px; margin-right: 6px; }
         .tag-blue { background: #dbeafe; color: #1e40af; }
         .tag-green { background: #d1fae5; color: #065f46; }
+        .tag-purple { background: #f3e8ff; color: #6b21a8; }
+        .tag-amber { background: #fef3c7; color: #92400e; }
+        
         .asset-tag { display: inline-flex; align-items: center; background: #e2e8f0; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 4px; margin-bottom: 4px; color: #475569; }
         .asset-remove { margin-left: 6px; cursor: pointer; color: #ef4444; font-weight: bold; }
         .asset-remove:hover { color: #dc2626; }
@@ -512,15 +516,105 @@
              <div class="doc-section">
                 <h2 class="doc-title">1. หลักการทำงานของระบบ (System Workflow)</h2>
                 <p class="doc-text mb-4 text-sm text-slate-600 leading-relaxed">
-                    ระบบจำลองการลงทุนนี้ทำงานโดยใช้ข้อมูลจริงย้อนหลัง (Historical Data) ผสมผสานกับตรรกะทางคณิตศาสตร์ (Quantitative Logic) โดยมีขั้นตอนดังนี้:
+                    ระบบจำลองการลงทุนนี้ทำงานโดยใช้ข้อมูลจริงย้อนหลัง (Historical Data) ผสมผสานกับตรรกะทางคณิตศาสตร์ (Quantitative Logic) โดยมีความสามารถในการจัดการกับปัญหา CORS และข้อมูลที่สูญหาย (Synthetic Fallback) มีขั้นตอนดังนี้:
                 </p>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="doc-box">
+                        <h4 class="font-bold text-slate-700 mb-2 text-sm">A. Data Engine</h4>
+                        <ul class="list-disc list-inside space-y-2 text-xs text-slate-600">
+                            <li><strong>Dual Proxy Fetch:</strong> ระบบจะพยายามดึงข้อมูลราคา (Adjusted Close) จาก Yahoo Finance ผ่าน Proxy (AllOrigins) หากล้มเหลวจะสลับไปใช้ Proxy สำรอง (CORSProxy) โดยอัตโนมัติ</li>
+                            <li><strong>Data Cleaning:</strong> กรองข้อมูลที่มีค่าเป็นศูนย์หรือ Null ออก และทำ Data Alignment ให้วันทำการตรงกันทุกสินทรัพย์</li>
+                            <li><strong>Synthetic Fallback:</strong> หากดึงข้อมูลไม่ได้จริงๆ ระบบจะสร้างข้อมูลจำลอง (Synthetic Data) ที่มีลักษณะ Statistical Property ใกล้เคียงตลาดหุ้นเพื่อให้ระบบทำงานต่อได้ (จะแสดงสถานะเตือนสีเหลือง)</li>
+                        </ul>
+                    </div>
+                    <div class="doc-box">
+                         <h4 class="font-bold text-slate-700 mb-2 text-sm">B. Simulation Core</h4>
+                         <ul class="list-disc list-inside space-y-2 text-xs text-slate-600">
+                            <li><strong>Daily Loop:</strong> จำลองการถือครองวันต่อวัน (Daily Step) เพื่อคำนวณมูลค่าพอร์ตที่เปลี่ยนแปลงจริง</li>
+                            <li><strong>Rebalancing:</strong> เมื่อถึงรอบวันที่กำหนด (เช่น ทุก 20 วัน) ระบบจะคำนวณ Signal ใหม่และปรับพอร์ตตามกลยุทธ์</li>
+                            <li><strong>Cost Impact:</strong> หักค่าใช้จ่าย 2 ส่วน: 1. Slippage+Comm (T-Cost) ทุกครั้งที่มีการซื้อขาย 2. Expense Ratio (ER) หารเฉลี่ยหักทุกวัน</li>
+                        </ul>
+                    </div>
+                </div>
+             </div>
+
+             <div class="doc-section">
+                <h2 class="doc-title">2. รายละเอียดกลยุทธ์การลงทุน (Strategy Encyclopedia)</h2>
+                <p class="mb-4 text-sm text-slate-500">คำอธิบายเจาะลึกของทั้ง 8 กลยุทธ์ที่มีให้เลือกในระบบ:</p>
+                
+                <h3 class="doc-subtitle"><span class="tag tag-blue">Simple Weighting</span> กลุ่มเน้นกระจายความเสี่ยงพื้นฐาน</h3>
                 <div class="doc-box">
-                    <ol class="list-decimal list-inside space-y-3 text-sm text-slate-600">
-                        <li><strong>Data Fetching:</strong> ดึงราคาปิดที่ปรับปรุงแล้ว (Adjusted Close) จาก Yahoo Finance ผ่าน Proxy (AllOrigins หรือ CORSProxy) หากดึงไม่สำเร็จจะสร้างข้อมูลจำลอง (Synthetic Data) แทน</li>
-                        <li><strong>Signal Calculation:</strong> คำนวณค่า Momentum หรือ Volatility ย้อนหลังตาม Lookback ที่กำหนด</li>
-                        <li><strong>Allocation:</strong> ในทุกรอบ Rebalance ระบบจะเลือกสินทรัพย์และกำหนดน้ำหนักตามกฎของกลยุทธ์</li>
-                        <li><strong>Backtest:</strong> จำลองการถือครองวันต่อวัน โดยหักค่าใช้จ่ายจริง (Cost) และวิเคราะห์ความเสี่ยง</li>
-                    </ol>
+                    <ul class="space-y-3 text-sm text-slate-600">
+                        <li>
+                            <strong class="text-slate-800">1. Rank All (Weight by Rank):</strong> 
+                            จัดลำดับสินทรัพย์ทั้งหมดตาม Momentum (ผลตอบแทนย้อนหลัง) จากมากไปน้อย และให้น้ำหนักตามลำดับขั้น อันดับ 1 จะได้น้ำหนักมากที่สุด และลดหลั่นกันไป (Linear Decay) วิธีนี้ทำให้เราถือตัวเก่งเยอะ ตัวอ่อนน้อย แต่ยังถือทุกตัว
+                        </li>
+                        <li>
+                            <strong class="text-slate-800">2. Equal Weight (Passive):</strong> 
+                            ลงทุนในสินทรัพย์ทุกตัวใน Universe เท่าๆ กัน (1/N) ไม่สนว่าผลงานในอดีตจะเป็นอย่างไร เป็นกลยุทธ์พื้นฐานเพื่อเปรียบเทียบ (Baseline) และเหมาะกับช่วงที่ตลาดผันผวนจนเลือกผู้ชนะไม่ได้
+                        </li>
+                    </ul>
+                </div>
+
+                <h3 class="doc-subtitle"><span class="tag tag-green">Momentum / Top-K</span> กลุ่มเน้นตามแนวโน้มและคัดเลือกผู้ชนะ</h3>
+                <div class="doc-box">
+                    <ul class="space-y-3 text-sm text-slate-600">
+                        <li>
+                            <strong class="text-slate-800">3. Top 3 Equal Weight:</strong> 
+                            คัดเลือกเฉพาะ "3 อันดับแรก" ที่มี Momentum สูงสุด และลงทุนเท่ากัน (33.33% ต่อตัว) เป็นกลยุทธ์ยอดนิยมที่เน้นการกระจุกตัวในผู้ชนะ (Winner Concentration)
+                        </li>
+                        <li>
+                            <strong class="text-slate-800">4. Top 3 Weighted by Rank:</strong> 
+                            เลือก 3 อันดับแรกเหมือนกัน แต่ถ่วงน้ำหนักตามลำดับความแรง อันดับ 1 จะได้น้ำหนักมากกว่าอันดับ 2 และ 3 (เช่น 50%, 33%, 17%) เพื่อให้ความสำคัญกับตัวที่แกร่งที่สุด
+                        </li>
+                         <li>
+                            <strong class="text-slate-800">5. Top 50% of Universe:</strong> 
+                            ตัดสินทรัพย์ที่มีผลงานแย่ครึ่งล่างทิ้งไป (Loser Screening) และลงทุนเฉพาะครึ่งบนแบบเท่าๆ กัน ช่วยลดความเสี่ยงจากการถือสินทรัพย์เน่า แต่ยังมีการกระจายความเสี่ยงที่ดีกว่า Top 3
+                        </li>
+                        <li>
+                            <strong class="text-slate-800">6. Absolute Momentum (>0):</strong> 
+                            พิจารณา Trend ของตัวเองเป็นหลัก หากผลตอบแทนย้อนหลังเป็นลบ (ขาลง) จะไม่ถือครอง (ถือเงินสด หรือตัดออกจากพอร์ต) ลงทุนเฉพาะตัวที่เป็นบวกเท่านั้น หารน้ำหนักเท่ากัน
+                        </li>
+                        <li>
+                            <strong class="text-slate-800">7. Dual Momentum (Relative + Absolute):</strong> 
+                            กลยุทธ์ลูกผสมที่เข้มงวดที่สุด สินทรัพย์ต้องผ่าน 2 เงื่อนไข: 
+                            1. ต้องเป็นขาขึ้น (Absolute > 0) 
+                            2. ต้องเก่งกว่าค่าเฉลี่ยของกลุ่ม (Relative Strength อยู่ในครึ่งบน) 
+                            เป็นการกรองทั้งสภาวะตลาดและคู่แข่ง
+                        </li>
+                    </ul>
+                </div>
+
+                <h3 class="doc-subtitle"><span class="tag tag-amber">Risk Based</span> กลุ่มเน้นความปลอดภัย</h3>
+                <div class="doc-box">
+                    <ul class="space-y-3 text-sm text-slate-600">
+                        <li>
+                            <strong class="text-slate-800">8. Inverse Volatility (Low Risk):</strong> 
+                            ไม่สนผลตอบแทน แต่สน "ความผันผวน (Volatility)" สินทรัพย์ที่ราคานิ่งๆ (Low Vol) จะได้รับน้ำหนักเยอะ สินทรัพย์ที่เหวี่ยงแรง (High Vol) จะได้รับน้ำหนักน้อย เป้าหมายคือทำให้ความเสี่ยงจากทุกตัวเท่ากัน (Risk Parity Concept)
+                        </li>
+                    </ul>
+                </div>
+             </div>
+
+             <div class="doc-section">
+                <h2 class="doc-title">3. คำอธิบายค่าสถิติ (Key Metrics Definitions)</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-4 border border-slate-200 rounded-lg">
+                        <strong class="text-blue-600 text-sm block mb-1">CAGR (Compound Annual Growth Rate)</strong>
+                        <p class="text-xs text-slate-500">อัตราผลตอบแทนทบต้นต่อปี คำนวณจาก (End/Start)^(1/Years) - 1 เป็นค่าที่ใช้เปรียบเทียบผลตอบแทนระยะยาวได้ดีที่สุด</p>
+                    </div>
+                    <div class="bg-white p-4 border border-slate-200 rounded-lg">
+                        <strong class="text-blue-600 text-sm block mb-1">Sharpe Ratio</strong>
+                        <p class="text-xs text-slate-500">ผลตอบแทนส่วนเกิน (Excess Return) ต่อหนึ่งหน่วยความเสี่ยง ยิ่งสูงยิ่งดี ค่า > 1 ถือว่าดีมาก บอกถึงความคุ้มค่าในการถือครอง</p>
+                    </div>
+                    <div class="bg-white p-4 border border-slate-200 rounded-lg">
+                        <strong class="text-blue-600 text-sm block mb-1">Max Drawdown (MDD)</strong>
+                        <p class="text-xs text-slate-500">เปอร์เซ็นต์การขาดทุนสูงสุดวัดจากจุดสูงสุดเดิม (Peak) ลงมายังจุดต่ำสุด (Trough) บอกถึงความเสี่ยงและความเจ็บปวดสูงสุดที่เคยเกิดขึ้น</p>
+                    </div>
+                    <div class="bg-white p-4 border border-slate-200 rounded-lg">
+                        <strong class="text-blue-600 text-sm block mb-1">Turnover Ratio</strong>
+                        <p class="text-xs text-slate-500">อัตราการหมุนเวียนพอร์ต บอกว่าใน 1 ปีเราเปลี่ยนหน้าหุ้นไปมากแค่ไหน ยิ่งเยอะยิ่งเสียค่าคอมมิชชันเยอะ (Cost Drag)</p>
+                    </div>
                 </div>
              </div>
         </div>
